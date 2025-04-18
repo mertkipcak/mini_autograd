@@ -11,6 +11,8 @@ int main() {
     };
     std::vector<int> a_shape = {2, 3};
     Tensor A(a_data, a_shape);
+    std::cout << A.to_string() << std::endl;
+
 
     // Tensor B: shape (3, 2)
     std::vector<float> b_data = {
@@ -20,14 +22,10 @@ int main() {
     };
     std::vector<int> b_shape = {3, 2};
     Tensor B(b_data, b_shape);
+    std::cout << B.to_string() << std::endl;
 
-    Tensor C = dot(A, B); // Should be shape (2, 2)
-
-    std::cout << "Result of A.dot(B):\n";
-    for (size_t i = 0; i < C.numel(); ++i) {
-        std::cout << C[i] << " ";
-        if ((i + 1) % 2 == 0) std::cout << std::endl;
-    }
+    Tensor C = sigmoid(A);
+    std::cout << C.to_string() << std::endl;
 
     return 0;
 }
