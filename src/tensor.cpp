@@ -22,6 +22,25 @@ Tensor::Tensor(
     }
 }
 
+Tensor::Tensor(
+    const t_data& data_,
+    const t_shape& shape_,
+    const t_shape& strides_,
+    bool requires_grad
+) : data(data_), shape(shape_), strides(strides_), requires_grad(requires_grad) {
+    assert(numel_shape(shape) == data.size());
+
+    // Setup strides
+    strides = t_strides(shape.size(), 1);
+    for(int i = shape.size() - 2; i >= 0; i--) {
+        strides[i] = strides[i+1] * shape[i+1];
+    }
+
+    // Setup grad
+    if (requires_grad) {
+        grad = t_data(data.size(), 0.0f);
+    }
+}
 
 const t_shape& Tensor::get_shape() const {
     return shape;
@@ -106,6 +125,7 @@ size_t Tensor::numel() const {
 }
 
 std::string Tensor::to_string() const {
+    size_t limit = 50;
     std::stringstream ss;
 
     ss << "Tensor(";
@@ -120,7 +140,7 @@ std::string Tensor::to_string() const {
     ss << ", requires_grad=" << (requires_grad ? "True" : "False");
 
     ss << ", data=[";
-    size_t preview_size = std::min(data.size(), size_t(5));
+    size_t preview_size = std::min(data.size(), limit);
     for (size_t i = 0; i < preview_size; ++i) {
         ss << data[i];
         if (i != preview_size - 1) {
@@ -128,13 +148,30 @@ std::string Tensor::to_string() const {
         }
     }
 
-    if (data.size() > 5) {
+    if (data.size() > limit) {
         ss << ", ...";
     }
 
     ss << "])";
     
     return ss.str();
+}
+
+Tensor Tensor::transpose() const {
+    if (shape.size() == 1) {
+        t_shape new_shape = {1, shape[0]};
+        t_shape new_strides = {shape[0], 1};
+        t_data new_data(data);
+        return Tensor(new_data, new_shape, requires_grad);
+    }
+
+    t_shape new_shape(shape);
+    std::swap(new_shape[new_shape.size() - 2], new_shape[new_shape.size() - 1]);
+
+    t_shape new_strides(strides);
+    std::swap(new_strides[new_strides.size() - 2], new_strides[new_strides.size() - 1]);
+    t_data new_data(data);
+    return Tensor(new_data, new_shape, requires_grad);
 }
 
 

@@ -9,7 +9,6 @@
 #include <span>
 #include <string>
 
-
 /**
  * @brief A multidimensional array implementation supporting automatic differentiation
  */
@@ -23,6 +22,11 @@ class Tensor {
          */
         Tensor(const t_data& data,
                const t_shape& shape,
+               bool requires_grad = false);
+
+        Tensor(const t_data& data,
+               const t_shape& shape,
+               const t_shape& strides,
                bool requires_grad = false);
     
         /**
@@ -104,6 +108,8 @@ class Tensor {
          * @return Formatted string showing tensor shape and values
          */
         std::string to_string() const;
+
+        Tensor transpose() const;
     
     private:
         t_data data;         // Tensor values
