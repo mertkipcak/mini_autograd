@@ -1,6 +1,7 @@
 #pragma once
 
 #include "tensor.hpp"
+#include "tensor_iterator.hpp"
 #include "utils.hpp"
 
 /**

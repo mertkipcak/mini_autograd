@@ -48,6 +48,14 @@ Tensor apply_binary(const Tensor& t1, const Tensor& t2, std::function<float(floa
 
     t_shape shape = maybe_shape.value();
 
+    Tensor res(t_data(numel_shape(shape)), shape, t1.get_requires_grad() || t2.get_requires_grad());
+
+    for(TensorIterator it(shape); !it.done(); it.inc()) {
+        t_indices indices = it.get();
+        res.at(indices) = op(t1.broadcasted_at(indices, shape), t2.broadcasted_at(indices, shape));
+    }
+
+    return res;
 }
 
 Tensor add(const Tensor& t1, const Tensor& t2) {
@@ -60,24 +68,48 @@ Tensor mul(const Tensor& t1, const Tensor& t2) {
 
 Tensor dot(const Tensor& t1, const Tensor& t2) {
     // Assertions and setup
-    assert(!t1.get_shape().empty() && !t2.get_shape().empty());
-    assert(t1.get_shape().back() == t2.get_shape().front());
+    t_shape s1 = t1.get_shape(); t_shape s2 = t2.get_shape();
+
+    assert(!s1.empty() && !s2.empty());
+    assert(s1.back() == s2.front());
+    int product_dimension = s1.back();
     
-    t_shape new_shape = t_shape();
-    for(size_t i = 0; i < t1.get_shape().size() - 1; i++) 
-        new_shape.push_back(t1.get_shape()[i]);
-    for(size_t i = 1; i < t2.get_shape().size(); i++)
-        new_shape.push_back(t2.get_shape()[i]);
+    t_shape new_shape;
+    new_shape.reserve(s1.size() + s2.size() - 2);
+    new_shape.insert(new_shape.end(), s1.begin(), s1.end() - 1);
+    new_shape.insert(new_shape.end(), s2.begin() + 1, s2.end());
 
     int new_size = numel_shape(new_shape);
-    t_data new_data(new_size);
+    t_data new_data(new_size, 0.0f);
     bool required_grad = t1.get_requires_grad() || t2.get_requires_grad();
-    Tensor result = Tensor(new_data, new_shape, required_grad);
+    Tensor res(new_data, new_shape, required_grad);
 
-    // Actual matmul
+    // Matmul
+    t_shape lhs_index(s1.size());
+    t_shape rhs_index(s2.size());
 
-    // result.at({...a, ...b}) = sum()
-    return result;
+    for(TensorIterator it(new_shape); !it.done(); it.inc()) {
+        t_indices indices = it.get();
+        t_indices left_indices = indices.subspan(0, s1.size() - 1);
+        t_indices right_indices = indices.subspan(s1.size() - 1);
+        std::copy(left_indices.begin(), left_indices.end(), lhs_index.begin());
+        std::copy(right_indices.begin(), right_indices.end(), rhs_index.begin() + 1);
+
+        float value = 0;
+
+        for(size_t i = 0; i < product_dimension; i++) {
+            lhs_index[s1.size() - 1] = i;
+            rhs_index[0] = i;
+
+            t_indices li(lhs_index);
+            t_indices ri(rhs_index);
+
+            value += t1.at(li) * t2.at(ri);
+        }
+
+        res.at(indices) = value;
+    }
+    return res;
 }
 
 Tensor apply_unary(const Tensor& t, std::function<float(float)> op) {

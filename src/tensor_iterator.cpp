@@ -16,5 +16,5 @@ const t_indices TensorIterator::get() {
 }
 
 bool TensorIterator::done() const {
-    return offset == numel - 1;
+    return offset >= numel;
 }
