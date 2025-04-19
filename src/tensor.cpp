@@ -4,34 +4,34 @@
 #include <sstream>
 
 Tensor::Tensor(
-    const std::vector<float>& data_,
-    const std::vector<int>& shape_,
+    const t_data& data_,
+    const t_shape& shape_,
     bool requires_grad
 ) : data(data_), shape(shape_), requires_grad(requires_grad) {
     assert(numel_shape(shape) == data.size());
 
     // Setup strides
-    strides = std::vector<int>(shape.size(), 1);
+    strides = t_strides(shape.size(), 1);
     for(int i = shape.size() - 2; i >= 0; i--) {
-        strides.at(i) = strides.at(i+1) * shape.at(i+1);
+        strides[i] = strides[i+1] * shape[i+1];
     }
 
     // Setup grad
     if (requires_grad) {
-        grad = std::vector<float>(data.size(), 0.0f);
+        grad = t_data(data.size(), 0.0f);
     }
 }
 
 
-const std::vector<int>& Tensor::get_shape() const {
+const t_shape& Tensor::get_shape() const {
     return shape;
 }
 
-const std::vector<float>& Tensor::get_data() const {
+const t_data& Tensor::get_data() const {
     return data;
 }
 
-void Tensor::set_data(const std::vector<float>& new_data) {
+void Tensor::set_data(const t_data& new_data) {
     assert(new_data.size() == data.size() && "Data size must match the shape size!");
     data = new_data;
 }
@@ -48,25 +48,38 @@ void Tensor::set_requires_grad(bool new_requires_grad) {
     }
 }
 
-float& Tensor::at(std::span<const int> indices) {
+float& Tensor::at(t_indices& indices) {
     assert(shape.size() == indices.size());
 
     int flat_index = 0;
     for(int i = 0; i < shape.size(); i++) {
-        assert(indices[i] >= 0 && indices[i] < shape.at(i));
-        flat_index += indices[i] * strides.at(i);
+        assert(indices[i] >= 0 && indices[i] < shape[i]);
+        flat_index += indices[i] * strides[i];
     }
 
     return data.at(flat_index);
 }
 
-const float& Tensor::at(std::span<const int> indices) const {
+const float& Tensor::at(t_indices& indices) const {
     assert(shape.size() == indices.size());
 
     int flat_index = 0;
     for(int i = 0; i < shape.size(); i++) {
-        assert(indices[i] >= 0 && indices[i] < shape.at(i));
-        flat_index += indices[i] * strides.at(i);
+        assert(indices[i] >= 0 && indices[i] < shape[i]);
+        flat_index += indices[i] * strides[i];
+    }
+
+    return data.at(flat_index);
+}
+
+const float& Tensor::broadcasted_at(const t_indices& indices, const t_shape& broadcasted_shape) const {
+    int flat_index = 0;
+    for(size_t i = 1; i <= shape.size(); i ++) {
+        size_t bo = broadcasted_shape.size() - i; // broadcasted offset
+        size_t o = shape.size() - i; // offset
+        assert(broadcasted_shape[bo] == shape[o] || shape[o] == 1);
+        if (shape[o] == 1) continue;
+        flat_index += indices[bo] * strides[o];
     }
 
     return data.at(flat_index);
@@ -75,8 +88,8 @@ const float& Tensor::at(std::span<const int> indices) const {
 bool Tensor::is_contiguous() const {
     int stride = 1;
     for (size_t i = shape.size(); i-- > 0;) {  
-        if (strides.at(i) != stride) return false;
-        stride *= shape.at(i);
+        if (strides[i] != stride) return false;
+        stride *= shape[i];
     }
 
     return true;

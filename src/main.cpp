@@ -24,7 +24,7 @@ int main() {
     Tensor B(b_data, b_shape);
     std::cout << B.to_string() << std::endl;
 
-    Tensor C = sigmoid(A);
+    Tensor C = apply_unary(A, [](float x) { return x + 2.0; });
     std::cout << C.to_string() << std::endl;
 
     return 0;
