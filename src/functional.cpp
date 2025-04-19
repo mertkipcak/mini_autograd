@@ -4,6 +4,18 @@
 #include <iostream>
 #include <cassert>
 
+Tensor randn(const t_shape& shape, bool requires_grad) {
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::normal_distribution<float> dist(0.0f, 1.0f);
+
+    size_t numel = numel_shape(shape);
+    t_data data(numel);
+
+    for (size_t i = 0; i < numel; ++i) data[i] = dist(gen);
+
+    return Tensor(data, shape, requires_grad);
+}
 
 bool same_shape(const Tensor& t1, const Tensor& t2) {
     return t1.get_shape() == t2.get_shape();
@@ -58,12 +70,18 @@ Tensor apply_binary(const Tensor& t1, const Tensor& t2, std::function<float(floa
     return res;
 }
 
-Tensor add(const Tensor& t1, const Tensor& t2) {
-    return apply_binary(t1, t2, [](float x, float y) { return x + y; });
-}
+Tensor apply_unary(const Tensor& t, std::function<float(float)> op) {
+    t_data data(t.get_data());
 
-Tensor mul(const Tensor& t1, const Tensor& t2) {
-    return apply_binary(t1, t2, [](float x, float y) { return x * y; });
+    for(size_t i = 0; i < data.size(); i++) {
+        data[i] = op(data[i]);
+    }
+
+    return Tensor(
+        data,
+        std::vector<int>(t.get_shape()),
+        t.get_requires_grad()
+    );
 }
 
 Tensor dot(const Tensor& t1, const Tensor& t2) {
@@ -112,18 +130,12 @@ Tensor dot(const Tensor& t1, const Tensor& t2) {
     return res;
 }
 
-Tensor apply_unary(const Tensor& t, std::function<float(float)> op) {
-    t_data data(t.get_data());
+Tensor add(const Tensor& t1, const Tensor& t2) {
+    return apply_binary(t1, t2, [](float x, float y) { return x + y; });
+}
 
-    for(size_t i = 0; i < data.size(); i++) {
-        data[i] = op(data[i]);
-    }
-
-    return Tensor(
-        data,
-        std::vector<int>(t.get_shape()),
-        t.get_requires_grad()
-    );
+Tensor mul(const Tensor& t1, const Tensor& t2) {
+    return apply_binary(t1, t2, [](float x, float y) { return x * y; });
 }
 
 Tensor sigmoid(const Tensor& t) {
