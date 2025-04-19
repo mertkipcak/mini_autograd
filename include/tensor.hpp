@@ -2,6 +2,7 @@
 #pragma once
 
 #include "utils.hpp"
+#include "types.hpp"
 #include <vector>
 #include <memory>
 #include <functional>
@@ -20,27 +21,27 @@ class Tensor {
          * @param shape The dimensions of the tensor
          * @param requires_grad Whether to track gradients for this tensor
          */
-        Tensor(const std::vector<float>& data,
-               const std::vector<int>& shape,
+        Tensor(const t_data& data,
+               const t_shape& shape,
                bool requires_grad = false);
     
         /**
          * @brief Get the tensor's shape
          * @return A vector of dimensions
          */
-        const std::vector<int>& get_shape() const;
+        const t_shape& get_shape() const;
     
         /**
          * @brief Get the tensor's data
          * @return A flattened vector of values
          */
-        const std::vector<float>& get_data() const;
+        const t_data& get_data() const;
         
         /**
          * @brief Set the tensor's data
          * @param new_data The new data values as a flattened vector
          */
-        void set_data(const std::vector<float>& new_data);
+        void set_data(const t_data& new_data);
     
         /**
          * @brief Check if the tensor requires gradient computation
@@ -59,14 +60,22 @@ class Tensor {
          * @param indices A span of indices for each dimension
          * @return Reference to the value at the specified position
          */
-        float& at(std::span<const int> indices);
-        
+        float& at(t_indices& indices);
+
         /**
          * @brief Const access to a tensor element by multi-dimensional indices
          * @param indices A span of indices for each dimension
          * @return Const reference to the value at the specified position
          */
-        const float& at(std::span<const int> indices) const;
+        const float& at(t_indices& indices) const;
+
+        /**
+         * @brief Access the broadcasted value at specific indices
+         * @param broadcast_shape The shape to which the tensor is being broadcasted
+         * @param indices The multi-dimensional indices in the broadcasted shape
+         * @return Const reference to the value at the specified broadcasted position
+         */
+        const float& broadcasted_at(const t_indices& indices, const t_shape& broadcast_shape) const;
     
         /**
          * @brief Check if the tensor data is stored in a contiguous layout
@@ -97,10 +106,10 @@ class Tensor {
         std::string to_string() const;
     
     private:
-        std::vector<float> data;         // Tensor values
-        std::vector<float> grad;         // Gradient values
-        const std::vector<int> shape;    // Tensor dimensions
-        std::vector<int> strides;        // Memory layout for indexing
+        t_data data;         // Tensor values
+        t_data grad;         // Gradient values
+        const t_shape shape;    // Tensor dimensions
+        t_strides strides;        // Memory layout for indexing
         bool requires_grad;              // Whether to track gradients
         std::vector<std::shared_ptr<Tensor>> creators;  // Input tensors that created this
         std::function<void(const Tensor& output_grad)> backward_fn;  // Function to backpropagate gradients
