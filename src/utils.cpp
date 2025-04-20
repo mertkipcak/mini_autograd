@@ -10,6 +10,15 @@ int numel_shape(const std::vector<int>& shape) {
     return size;
 }
 
+t_shape pad_shape_to_size(const t_shape& shape, size_t size, int pad) {
+    if (shape.size() >= size) {
+        return shape;
+    }
+    t_shape padded(size, pad);
+    std::copy(shape.begin(), shape.end(), padded.end() - shape.size());
+    return padded;
+}
+
 float sigmoid(float x) {
     return 1 / (1 + exp(-x));
 }

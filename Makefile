@@ -1,11 +1,16 @@
 CXX = g++
 CXXFLAGS = -std=c++20 -O2 -Wall -Iinclude
 
-all: main
+SRC_DIR = src
 
-main: src/main.cpp src/tensor.cpp src/functional.cpp src/utils.cpp src/tensor_iterator.cpp
-	$(CXX) $(CXXFLAGS) $^ -o main
+SRC_FILES := $(wildcard $(SRC_DIR)/*.cpp)
+
+MAIN_EXE := main
+
+all: $(MAIN_EXE)
+
+$(MAIN_EXE): $(SRC_FILES)
+	$(CXX) $(CXXFLAGS) $^ -o $@
 
 clean:
-	rm -f main
-
+	rm -f $(MAIN_EXE)

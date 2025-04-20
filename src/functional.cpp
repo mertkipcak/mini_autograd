@@ -55,20 +55,23 @@ std::optional<t_shape> broadcast_shape(const Tensor& A, const Tensor& B) {
     return broadcasted_shape;
 }
 
-Tensor apply_binary(const Tensor& A, const Tensor& B, std::function<float(float, float)> op) {
+template<typename Op>
+Tensor apply_binary_t(const Tensor& A, const Tensor& B, Op op) {
     std::optional<t_shape> maybe_shape = broadcast_shape(A, B);
     if (!maybe_shape.has_value()) throw std::runtime_error("Shape mismatch at Tensor binary operations");
 
-    t_shape shape = maybe_shape.value();
-    size_t numel = numel_shape(shape);
-    Tensor res(t_data(numel), shape, A.get_requires_grad() || B.get_requires_grad());
+    t_shape res_shape = maybe_shape.value();
+    t_shape a_shape = pad_shape_to_size(A.get_shape(), res_shape.size());
+    t_shape b_shape = pad_shape_to_size(B.get_shape(), res_shape.size());
+    size_t numel = numel_shape(res_shape);
+    Tensor res(t_data(numel), res_shape, A.get_requires_grad() || B.get_requires_grad());
 
-    // No broadcasting, both matrices contiguous, optimized
-    if (A.get_shape() == shape && B.get_shape() == shape && A.get_contiguous() && B.get_contiguous()) {
-        const float* __restrict__ a_data = A.get_data().data();
-        const float* __restrict__ b_data = B.get_data().data();
-        float* __restrict__ out = res.get_data().data();
+    const float* __restrict__ a_data = A.get_data().data();
+    const float* __restrict__ b_data = B.get_data().data();
+    float* __restrict__ out = res.get_data().data();
 
+    // No broadcasting, both matrices contiguous, optimized path
+    if (a_shape == b_shape && A.get_contiguous() && B.get_contiguous()) {
         #pragma omp parallel for simd
         for (size_t i = 0; i < numel; ++i) {
             out[i] = op(a_data[i], b_data[i]);
@@ -76,15 +79,48 @@ Tensor apply_binary(const Tensor& A, const Tensor& B, std::function<float(float,
         return res;
     }
 
-    // Fallback for all other cases
-    for (TensorIterator it(shape); !it.done(); it.inc()) {
-        t_indices indices = it.get();
-        res.at(indices) = op(A.broadcasted_at(indices, shape), B.broadcasted_at(indices, shape));
+    // Broadcasting and/or non-contiguous
+    t_shape a_strides = pad_shape_to_size(A.get_strides(), res_shape.size(), 0);
+    t_shape b_strides = pad_shape_to_size(B.get_strides(), res_shape.size(), 0);
+    
+    for (size_t i = 0; i < res_shape.size(); i++) {
+        if(a_shape[i] == 1) {
+            a_strides[i] = 0;
+        }
+        if(b_shape[i] == 1) {
+            b_strides[i] = 0;
+        }
     }
+    std::vector<size_t> a_indices(numel);
+    std::vector<size_t> b_indices(numel);
+    
+    #pragma omp parallel for
+    for (size_t i = 0; i < numel; ++i) {
+        size_t remaining = i;
+        size_t a_flat_index = 0;
+        size_t b_flat_index = 0;
+        
+        for (int dim = static_cast<int>(res_shape.size()) - 1; dim >= 0; --dim) {
+            size_t coord = remaining % res_shape[dim];
+            a_flat_index += a_strides[dim] * coord;
+            b_flat_index += b_strides[dim] * coord;
+            remaining /= res_shape[dim];
+        }
+        
+        a_indices[i] = a_flat_index;
+        b_indices[i] = b_flat_index;
+    }
+    
+    #pragma omp parallel for simd
+    for (size_t i = 0; i < numel; ++i) {
+        out[i] = op(a_data[a_indices[i]], b_data[b_indices[i]]);
+    }
+    
     return res;
 }
 
-Tensor apply_unary(const Tensor& A, std::function<float(float)> op) {
+template<typename Op>
+Tensor apply_unary_t(const Tensor& A, Op op) {
     t_data data(A.get_data().size());
     const float* __restrict__ in = A.get_data().data();
     float* __restrict__ out = data.data();
@@ -257,6 +293,13 @@ Tensor matmul_generic(const Tensor& A, const Tensor& B) {
     return Tensor(out_data, out_shape, out_strides);
 }
 
+Tensor apply_binary(const Tensor& A, const Tensor& B, std::function<float(float, float)> op) {
+    return apply_binary_t(A, B, op);
+}
+
+Tensor apply_unary(const Tensor& A, std::function<float(float)> op) {
+    return apply_unary_t(A, op);
+}
 
 Tensor matmul(const Tensor& A, const Tensor& B) {
     // Assertions
@@ -272,110 +315,21 @@ Tensor matmul(const Tensor& A, const Tensor& B) {
 }
 
 Tensor add(const Tensor& A, const Tensor& B) {
-    std::optional<t_shape> maybe_shape = broadcast_shape(A, B);
-    if (!maybe_shape.has_value()) throw std::runtime_error("Shape mismatch at Tensor binary operations");
-
-    t_shape shape = maybe_shape.value();
-    size_t numel = numel_shape(shape);
-    Tensor res(t_data(numel), shape, A.get_requires_grad() || B.get_requires_grad());
-
-    // No broadcasting, both matrices contiguous, optimized
-    if (A.get_shape() == shape && B.get_shape() == shape && A.get_contiguous() && B.get_contiguous()) {
-        const float* __restrict__ in1 = A.get_data().data();
-        const float* __restrict__ in2 = B.get_data().data();
-        float* __restrict__ out = res.get_data().data();
-
-        #pragma omp parallel for simd
-        for (size_t i = 0; i < numel; ++i) {
-            out[i] = in1[i] + in2[i];
-        }
-        return res;
-    }
-
-    // Fallback for all other cases
-    for (TensorIterator it(shape); !it.done(); it.inc()) {
-        t_indices indices = it.get();
-        res.at(indices) = A.broadcasted_at(indices, shape) + B.broadcasted_at(indices, shape);
-    }
-    return res;
+    return apply_binary_t(A, B, [](float x, float y) { return x + y;});
 }
 
 Tensor mul(const Tensor& A, const Tensor& B) {
-    std::optional<t_shape> maybe_shape = broadcast_shape(A, B);
-    if (!maybe_shape.has_value()) throw std::runtime_error("Shape mismatch at Tensor binary operations");
-
-    t_shape shape = maybe_shape.value();
-    size_t numel = numel_shape(shape);
-    Tensor res(t_data(numel), shape, A.get_requires_grad() || B.get_requires_grad());
-
-    // No broadcasting, both matrices contiguous, optimized
-    if (A.get_shape() == shape && B.get_shape() == shape && A.get_contiguous() && B.get_contiguous()) {
-        const float* __restrict__ in1 = A.get_data().data();
-        const float* __restrict__ in2 = B.get_data().data();
-        float* __restrict__ out = res.get_data().data();
-
-        #pragma omp parallel for simd
-        for (size_t i = 0; i < numel; ++i) {
-            out[i] = in1[i] * in2[i];
-        }
-        return res;
-    }
-
-    // Fallback for all other cases
-    for (TensorIterator it(shape); !it.done(); it.inc()) {
-        t_indices indices = it.get();
-        res.at(indices) = A.broadcasted_at(indices, shape) * B.broadcasted_at(indices, shape);
-    }
-    return res;
+    return apply_binary_t(A, B, [](float x, float y) { return x * y;});
 }
 
 Tensor sigmoid(const Tensor& A) {
-    t_data data(A.get_data().size());
-    const float* __restrict__ in = A.get_data().data();
-    float* __restrict__ out = data.data();
-    
-    #pragma omp parallel for simd
-    for(size_t i = 0; i < data.size(); i++) {
-        out[i] = sigmoid(in[i]);
-    }
-
-    return Tensor(
-        data,
-        std::vector<int>(A.get_shape()),
-        A.get_requires_grad()
-    );
+    return apply_unary_t(A, [](float x) { return sigmoid(x);});
 }
 
 Tensor exp(const Tensor& A) {
-    t_data data(A.get_data().size());
-    const float* __restrict__ in = A.get_data().data();
-    float* __restrict__ out = data.data();
-    
-    #pragma omp parallel for simd
-    for(size_t i = 0; i < data.size(); i++) {
-        out[i] = exp(in[i]);
-    }
-
-    return Tensor(
-        data,
-        std::vector<int>(A.get_shape()),
-        A.get_requires_grad()
-    );
+    return apply_unary_t(A, [](float x) { return exp(x);});
 }
 
 Tensor log(const Tensor& A) {
-    t_data data(A.get_data().size());
-    const float* __restrict__ in = A.get_data().data();
-    float* __restrict__ out = data.data();
-    
-    #pragma omp parallel for simd
-    for(size_t i = 0; i < data.size(); i++) {
-        out[i] = log(in[i]);
-    }
-
-    return Tensor(
-        data,
-        std::vector<int>(A.get_shape()),
-        A.get_requires_grad()
-    );
+    return apply_unary_t(A, [](float x) { return log(x);});
 }
