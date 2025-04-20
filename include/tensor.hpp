@@ -30,7 +30,6 @@ class Tensor {
                bool requires_grad = false);
 
         Tensor(Tensor& other,
-               bool make_contiguous = false,
                bool requires_grad = false);
     
         /**
@@ -80,6 +79,12 @@ class Tensor {
          * @param new_requires_grad New gradient tracking setting
          */
         void set_requires_grad(bool new_requires_grad);
+
+        /**
+         * @brief Get the tensor's grad
+         * @return A flattened vector of values
+         */
+        t_data& get_grad() { return grad; };
     
         /**
          * @brief Access a tensor element by multi-dimensional indices
@@ -102,6 +107,20 @@ class Tensor {
          * @return Const reference to the value at the specified broadcasted position
          */
         const float& broadcasted_at(const t_indices& indices, const t_shape& broadcast_shape) const;
+
+        /**
+         * @brief Access a grad element by multi-dimensional indices
+         * @param indices A span of indices for each dimension
+         * @return Reference to the grad value at the specified position
+         */
+        float& grad_at(t_indices& indices);
+
+        /**
+         * @brief Const access to a grad element by multi-dimensional indices
+         * @param indices A span of indices for each dimension
+         * @return Const reference to the grad value at the specified position
+         */
+        const float& grad_at(t_indices& indices) const;
     
         /**
          * @brief Perform backpropagation starting from this tensor
@@ -130,7 +149,7 @@ class Tensor {
     private:
         t_data data;         // Tensor values
         t_data grad;         // Gradient values
-        const t_shape shape;    // Tensor dimensions
+        t_shape shape;    // Tensor dimensions
         t_shape strides;        // Memory layout for indexing
         bool contiguous;    // Is memory layed out row-major order
         bool requires_grad;              // Whether to track gradients
@@ -147,10 +166,15 @@ class Tensor {
          * @brief Check if the tensor has input creators
          * @return True if the tensor was created by operations on other tensors
          */
-        bool has_creator();
+        bool has_creator() const;
         
         /**
          * @brief Initialize gradient storage
          */
         void build_grad();
+
+        /**
+         * @brief Get the flat index of the data given indices
+         */
+        int get_flat_index(const t_indices& indices) const;
     };

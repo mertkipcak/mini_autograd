@@ -8,6 +8,9 @@ Tensor::Tensor(
     const t_shape& shape_,
     bool requires_grad_
 ) : data(data_), shape(shape_), requires_grad(requires_grad_) {
+    if (shape.size() == 1) {
+        shape = {shape[0], 1};
+    }
     assert(numel_shape(shape) == data.size());
 
     // Setup strides
@@ -29,6 +32,9 @@ Tensor::Tensor(
     const t_shape& strides_,
     bool requires_grad
 ) : data(data_), shape(shape_), strides(strides_), requires_grad(requires_grad) {
+    if (shape.size() == 1) {
+        shape = {shape[0], 1};
+    }
     assert(numel_shape(shape) == data.size());
 
     contiguous = is_contiguous();
@@ -41,14 +47,12 @@ Tensor::Tensor(
 
 Tensor::Tensor(
     Tensor& other,
-    bool make_contiguous,
     bool requires_grad
 ) : data(other.data), shape(other.shape), strides(other.strides), requires_grad(requires_grad) {
-    contiguous = is_contiguous();
-
-    if (make_contiguous && !contiguous) {
-
+    if (shape.size() == 1) {
+        shape = {shape[0], 1};
     }
+    contiguous = is_contiguous();
 
     // Setup grad
     if (requires_grad) {
@@ -64,29 +68,24 @@ void Tensor::set_requires_grad(bool new_requires_grad) {
     }
 }
 
-float& Tensor::at(t_indices& indices) {
-    assert(shape.size() == indices.size());
-
+int Tensor::get_flat_index(const t_indices& indices) const {
     int flat_index = 0;
     for(int i = 0; i < shape.size(); i++) {
         assert(indices[i] >= 0 && indices[i] < shape[i]);
         flat_index += indices[i] * strides[i];
     }
 
-    return data.at(flat_index);
+    return flat_index;
+}
+
+float& Tensor::at(t_indices& indices) {
+    return data.at(get_flat_index(indices));
 }
 
 const float& Tensor::at(t_indices& indices) const {
-    assert(shape.size() == indices.size());
-
-    int flat_index = 0;
-    for(int i = 0; i < shape.size(); i++) {
-        assert(indices[i] >= 0 && indices[i] < shape[i]);
-        flat_index += indices[i] * strides[i];
-    }
-
-    return data.at(flat_index);
+    return data.at(get_flat_index(indices));
 }
+
 
 const float& Tensor::broadcasted_at(const t_indices& indices, const t_shape& broadcasted_shape) const {
     int flat_index = 0;
@@ -100,6 +99,14 @@ const float& Tensor::broadcasted_at(const t_indices& indices, const t_shape& bro
 
     return data.at(flat_index);
 }
+
+float& Tensor::grad_at(t_indices& indices) {
+    return grad.at(get_flat_index(indices));
+}
+
+const float& Tensor::grad_at(t_indices& indices) const {
+    return grad.at(get_flat_index(indices));
+};
 
 bool Tensor::is_contiguous() const {
     int stride = 1;
@@ -202,6 +209,6 @@ size_t Tensor::numel() const {
     return data.size();
 }
 
-bool Tensor::has_creator() { return !creators.empty(); }
+bool Tensor::has_creator() const { return !creators.empty(); }
 
 void Tensor::build_grad() {}

@@ -166,7 +166,6 @@ Tensor matmul_generic(const Tensor& A, const Tensor& B) {
     const t_data& data_B = B.get_data();
 
     const int ndim_A = shape_A.size();
-    const int ndim_B = shape_B.size();
     const int M = shape_A[ndim_A - 2];
     const int K = shape_A[ndim_A - 1];
     const int N = shape_B[1];
