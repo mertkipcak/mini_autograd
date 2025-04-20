@@ -28,30 +28,52 @@ class Tensor {
                const t_shape& shape,
                const t_shape& strides,
                bool requires_grad = false);
+
+        Tensor(Tensor& other,
+               bool make_contiguous = false,
+               bool requires_grad = false);
     
         /**
          * @brief Get the tensor's shape
          * @return A vector of dimensions
          */
-        const t_shape& get_shape() const;
+        const t_shape& get_shape() const { return shape; };
+
+        /**
+         * @brief Get the tensor's strides
+         * @return A vector of strides
+         */
+        const t_shape& get_strides() const { return strides; };
     
         /**
          * @brief Get the tensor's data
          * @return A flattened vector of values
          */
-        const t_data& get_data() const;
+        const t_data& get_data() const { return data; };
+
+        /**
+         * @brief Get the tensor's data
+         * @return A flattened vector of values
+         */
+        t_data& get_data() { return data; };
         
         /**
          * @brief Set the tensor's data
          * @param new_data The new data values as a flattened vector
          */
-        void set_data(const t_data& new_data);
+        void set_data(const t_data& new_data) { data = new_data; };
+
+        /**
+         * @brief Check if the tensor is stored in row-major order
+         * @return True if memory in row-major order
+         */
+        bool get_contiguous() const { return contiguous; };
     
         /**
          * @brief Check if the tensor requires gradient computation
          * @return True if gradients are being tracked
          */
-        bool get_requires_grad() const;
+        bool get_requires_grad() const { return requires_grad; };
         
         /**
          * @brief Set whether the tensor requires gradient computation
@@ -82,12 +104,6 @@ class Tensor {
         const float& broadcasted_at(const t_indices& indices, const t_shape& broadcast_shape) const;
     
         /**
-         * @brief Check if the tensor data is stored in a contiguous layout
-         * @return True if the tensor data is contiguous in memory
-         */
-        bool is_contiguous() const;
-    
-        /**
          * @brief Perform backpropagation starting from this tensor
          */
         void backward();
@@ -115,11 +131,18 @@ class Tensor {
         t_data data;         // Tensor values
         t_data grad;         // Gradient values
         const t_shape shape;    // Tensor dimensions
-        t_strides strides;        // Memory layout for indexing
+        t_shape strides;        // Memory layout for indexing
+        bool contiguous;    // Is memory layed out row-major order
         bool requires_grad;              // Whether to track gradients
         std::vector<std::shared_ptr<Tensor>> creators;  // Input tensors that created this
         std::function<void(const Tensor& output_grad)> backward_fn;  // Function to backpropagate gradients
     
+        /**
+         * @brief Check if the tensor data is stored in a contiguous layout
+         * @return True if the tensor data is contiguous in memory
+         */
+        bool is_contiguous() const;
+
         /**
          * @brief Check if the tensor has input creators
          * @return True if the tensor was created by operations on other tensors

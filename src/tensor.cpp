@@ -6,15 +6,16 @@
 Tensor::Tensor(
     const t_data& data_,
     const t_shape& shape_,
-    bool requires_grad
-) : data(data_), shape(shape_), requires_grad(requires_grad) {
+    bool requires_grad_
+) : data(data_), shape(shape_), requires_grad(requires_grad_) {
     assert(numel_shape(shape) == data.size());
 
     // Setup strides
-    strides = t_strides(shape.size(), 1);
+    strides = t_shape(shape.size(), 1);
     for(int i = shape.size() - 2; i >= 0; i--) {
         strides[i] = strides[i+1] * shape[i+1];
     }
+    contiguous = is_contiguous();
 
     // Setup grad
     if (requires_grad) {
@@ -30,11 +31,7 @@ Tensor::Tensor(
 ) : data(data_), shape(shape_), strides(strides_), requires_grad(requires_grad) {
     assert(numel_shape(shape) == data.size());
 
-    // Setup strides
-    strides = t_strides(shape.size(), 1);
-    for(int i = shape.size() - 2; i >= 0; i--) {
-        strides[i] = strides[i+1] * shape[i+1];
-    }
+    contiguous = is_contiguous();
 
     // Setup grad
     if (requires_grad) {
@@ -42,21 +39,21 @@ Tensor::Tensor(
     }
 }
 
-const t_shape& Tensor::get_shape() const {
-    return shape;
-}
+Tensor::Tensor(
+    Tensor& other,
+    bool make_contiguous,
+    bool requires_grad
+) : data(other.data), shape(other.shape), strides(other.strides), requires_grad(requires_grad) {
+    contiguous = is_contiguous();
 
-const t_data& Tensor::get_data() const {
-    return data;
-}
+    if (make_contiguous && !contiguous) {
+        
+    }
 
-void Tensor::set_data(const t_data& new_data) {
-    assert(new_data.size() == data.size() && "Data size must match the shape size!");
-    data = new_data;
-}
-
-bool Tensor::get_requires_grad() const {
-    return requires_grad;
+    // Setup grad
+    if (requires_grad) {
+        grad = t_data(data.size(), 0.0f);
+    }
 }
 
 void Tensor::set_requires_grad(bool new_requires_grad) {
@@ -114,16 +111,6 @@ bool Tensor::is_contiguous() const {
     return true;
 }
 
-void Tensor::backward() {}
-
-void Tensor::zero_grad() {
-    grad.assign(data.size(), 0.0f);
-}
-
-size_t Tensor::numel() const {
-    return data.size();
-}
-
 std::string Tensor::to_string() const {
     size_t limit = 50;
     std::stringstream ss;
@@ -174,6 +161,15 @@ Tensor Tensor::transpose() const {
     return Tensor(new_data, new_shape, requires_grad);
 }
 
+void Tensor::backward() {}
+
+void Tensor::zero_grad() {
+    grad.assign(data.size(), 0.0f);
+}
+
+size_t Tensor::numel() const {
+    return data.size();
+}
 
 bool Tensor::has_creator() { return !creators.empty(); }
 

@@ -9,6 +9,7 @@ class TensorIterator {
 
         void inc();
         const t_indices get();
+        const size_t get_offset() { return offset; };
         bool done() const;
 
     private:

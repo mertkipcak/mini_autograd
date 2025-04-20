@@ -84,13 +84,71 @@ Tensor apply_unary(const Tensor& t, std::function<float(float)> op) {
     );
 }
 
+void dot_contiguous(const Tensor& t1, const Tensor& t2, Tensor& res) {
+    const t_data& d1 = t1.get_data();
+    const t_data& d2 = t2.get_data();
+    t_data& dr = res.get_data();
+
+    t_shape s1 = t1.get_shape();
+    t_shape s2 = t2.get_shape();
+    t_shape sr = res.get_shape();
+
+    const t_shape& lhs_strides = t1.get_strides();
+    const t_shape& rhs_strides = t2.get_strides();
+
+    for (TensorIterator it(sr); !it.done(); it.inc()) {
+        t_indices indices = it.get();
+        int lhs_flat = 0, rhs_flat = 0;
+        for (size_t d = 0; d < s1.size() - 1; ++d)
+            lhs_flat += indices[d] * lhs_strides[d];
+        for (size_t d = 1; d < s2.size(); ++d)
+            rhs_flat += indices[s1.size() - 1 + d - 1] * rhs_strides[d];
+
+        float value = 0.0f;
+        for (int k = 0; k < s1.back(); ++k)
+            value += d1[lhs_flat + k * lhs_strides[s1.size() - 1]] *
+                        d2[rhs_flat + k * rhs_strides[0]];
+
+        dr[it.get_offset()] = value;
+    }
+}
+
+void dot_generic(const Tensor& t1, const Tensor& t2, Tensor& res) {
+    t_shape s1 = t1.get_shape();
+    t_shape s2 = t2.get_shape();
+    t_shape lhs_index(s1.size());
+    t_shape rhs_index(s2.size());
+
+    for(TensorIterator it(res.get_shape()); !it.done(); it.inc()) {
+        t_indices indices = it.get();
+        t_indices left_indices = indices.subspan(0, s1.size() - 1);
+        t_indices right_indices = indices.subspan(s1.size() - 1);
+        std::copy(left_indices.begin(), left_indices.end(), lhs_index.begin());
+        std::copy(right_indices.begin(), right_indices.end(), rhs_index.begin() + 1);
+
+        float value = 0;
+
+        for(size_t i = 0; i < s1.back(); i++) {
+            lhs_index[s1.size() - 1] = i;
+            rhs_index[0] = i;
+
+            t_indices li(lhs_index);
+            t_indices ri(rhs_index);
+
+            value += t1.at(li) * t2.at(ri);
+        }
+
+        res.at(indices) = value;
+    }
+}
+
 Tensor dot(const Tensor& t1, const Tensor& t2) {
     // Assertions and setup
-    t_shape s1 = t1.get_shape(); t_shape s2 = t2.get_shape();
+    t_shape s1 = t1.get_shape();
+    t_shape s2 = t2.get_shape();
 
     assert(!s1.empty() && !s2.empty());
     assert(s1.back() == s2.front());
-    int product_dimension = s1.back();
     
     t_shape new_shape;
     new_shape.reserve(s1.size() + s2.size() - 2);
@@ -103,30 +161,12 @@ Tensor dot(const Tensor& t1, const Tensor& t2) {
     Tensor res(new_data, new_shape, required_grad);
 
     // Matmul
-    t_shape lhs_index(s1.size());
-    t_shape rhs_index(s2.size());
-
-    for(TensorIterator it(new_shape); !it.done(); it.inc()) {
-        t_indices indices = it.get();
-        t_indices left_indices = indices.subspan(0, s1.size() - 1);
-        t_indices right_indices = indices.subspan(s1.size() - 1);
-        std::copy(left_indices.begin(), left_indices.end(), lhs_index.begin());
-        std::copy(right_indices.begin(), right_indices.end(), rhs_index.begin() + 1);
-
-        float value = 0;
-
-        for(size_t i = 0; i < product_dimension; i++) {
-            lhs_index[s1.size() - 1] = i;
-            rhs_index[0] = i;
-
-            t_indices li(lhs_index);
-            t_indices ri(rhs_index);
-
-            value += t1.at(li) * t2.at(ri);
-        }
-
-        res.at(indices) = value;
+    if (t1.get_contiguous() && t2.get_contiguous()) {
+        dot_contiguous(t1, t2, res);
+    } else {
+        dot_generic(t1, t2, res);
     }
+    
     return res;
 }
 
