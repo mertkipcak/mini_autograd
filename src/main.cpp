@@ -29,6 +29,22 @@ void test_accuracy() {
     std::cout << C.to_string() << std::endl;
 }
 
+void test_unary_speed() {
+    Tensor A = randn({4096, 4096, 8});
+
+    auto start1 = std::chrono::high_resolution_clock::now();
+    Tensor B = exp(A);
+    auto end1 = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed1 = end1 - start1;
+    std::cout << "Optimized time: " << elapsed1.count() << " seconds" << std::endl;
+
+    auto start2 = std::chrono::high_resolution_clock::now();
+    Tensor C = apply_binary(A, A, [](float x, float y){ return exp(x); });
+    auto end2 = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed2 = end2 - start2;
+    std::cout << "Non-optimized time: " << elapsed2.count() << " seconds" << std::endl;
+}
+
 void test_speed() {
     // Use large shapes for benchmarking
     Tensor A = randn({2048, 2048});
@@ -50,7 +66,7 @@ void test_speed() {
 }
 
 int main() {
-    test_accuracy();
+    test_unary_speed();
 
     return 0;
 }
