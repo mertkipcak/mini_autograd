@@ -18,81 +18,81 @@ Tensor randn(const t_shape& shape, bool requires_grad=false);
 
 /**
  * @brief Check if two tensors have the same shape
- * @param t1 First tensor
- * @param t2 Second tensor
+ * @param A First tensor
+ * @param B Second tensor
  * @return True if shapes match
  */
-bool same_shape(const Tensor& t1, const Tensor& t2);
+bool same_shape(const Tensor& A, const Tensor& B);
 
 /**
  * @brief Get the broadcasted shape of two tensors, if possible
- * @param t1 First tensor
- * @param t2 Second tensor
+ * @param A First tensor
+ * @param B Second tensor
  * @return The new broadcasted shape or std::nullopt if incompatible
  */
-std::optional<t_shape> broadcast_shape(const Tensor& t1, const Tensor& t2);
+std::optional<t_shape> broadcast_shape(const Tensor& A, const Tensor& B);
 
 /**
  * @brief Apply a binary operation element-wise to two tensors.
- * @param t1 First tensor
- * @param t2 Second tensor
+ * @param A First tensor
+ * @param B Second tensor
  * @param op The binary operator to apply element-wise
  * @return New tensor containing the result of the operation
  */
-Tensor apply_binary(const Tensor& t1, const Tensor& t2, std::function<float(float, float)> op);
+Tensor apply_binary(const Tensor& A, const Tensor& B, std::function<float(float, float)> op);
 
 /**
  * @brief Apply an operation element-wise to a tensor
- * @param a Input tensor
+ * @param A Input tensor
  * @param op the operator to apply element-wise
  * @return New tensor with operation applied
  */
-Tensor apply_unary(const Tensor& t, std::function<float(float)> op);
+Tensor apply_unary(const Tensor& A, std::function<float(float)> op);
 
 /**
  * @brief Create a new tensor from the matrix multiplication of two tensors
- * @param t1 First tensor
- * @param t2 Second tensor
+ * @param A First tensor
+ * @param B Second tensor
  * @return New tensor containing the result
  */
-Tensor dot(const Tensor& t1, const Tensor& t2);
+Tensor matmul(const Tensor& A, const Tensor& B);
 
 /**
  * @brief Create a new tensor that is the element-wise sum of two tensors
- * @param t1 First tensor
- * @param t2 Second tensor
+ * @param A First tensor
+ * @param B Second tensor
  * @return New tensor containing the result
  */
-Tensor add(const Tensor& t1, const Tensor& t2);
+Tensor add(const Tensor& A, const Tensor& B);
 
 /**
  * @brief Create a new tensor that is the element-wise product of two tensors
- * @param t1 First tensor
- * @param t2 Second tensor
+ * @param A First tensor
+ * @param B Second tensor
  * @return New tensor containing the result
  */
-Tensor mul(const Tensor& t1, const Tensor& t2);
+Tensor mul(const Tensor& A, const Tensor& B);
 
 /**
  * @brief Apply sigmoid function element-wise to a tensor
- * @param t Input tensor
+ * @param A Input tensor
  * @return New tensor with sigmoid applied
  */
-Tensor sigmoid(const Tensor& t);
+Tensor sigmoid(const Tensor& A);
 
 /**
  * @brief Apply exponential function element-wise to a tensor
- * @param t Input tensor
+ * @param A Input tensor
  * @return New tensor with exp applied
  */
-Tensor exp(const Tensor& t);
+Tensor exp(const Tensor& A);
 
 /**
  * @brief Apply natural logarithm element-wise to a tensor
- * @param t Input tensor
+ * @param A Input tensor
  * @return New tensor with log applied
  */
-Tensor log(const Tensor& t);
+Tensor log(const Tensor& A);
 
 /**
  * @brief Apply softmax function over the specified axis
@@ -100,24 +100,24 @@ Tensor log(const Tensor& t);
  * @param axis Axis to apply softmax along (default -1 = last dim)
  * @return New tensor with softmax probabilities
  */
-Tensor softmax(const Tensor& t, int axis = -1);
+Tensor softmax(const Tensor& A, int axis = -1);
 
 /**
  * @brief Apply layer normalization over the last dimension
- * @param t Input tensor
+ * @param A Input tensor
  * @param eps Small constant for numerical stability
  * @return New tensor with normalized values
  */
-Tensor layernorm(const Tensor& t, float eps = 1e-5);
+Tensor layernorm(const Tensor& A, float eps = 1e-5);
 
 /**
  * @brief Apply dropout to the input tensor
- * @param t Input tensor
+ * @param A Input tensor
  * @param p Dropout probability
  * @param training Whether to apply dropout (false = pass through)
  * @return New tensor with dropped elements
  */
-Tensor dropout(const Tensor& t, float p, bool training = true);
+Tensor dropout(const Tensor& A, float p, bool training = true);
 
 /**
  * @brief Look up embeddings by indices
@@ -137,9 +137,9 @@ Tensor concat(const std::vector<Tensor>& tensors, int axis);
 
 /**
  * @brief Split tensor into equal chunks along axis
- * @param t Input tensor
+ * @param A Input tensor
  * @param chunks Number of chunks
  * @param axis Axis along which to split
  * @return Vector of chunked tensors
  */
-std::vector<Tensor> split(const Tensor& t, int chunks, int axis);
+std::vector<Tensor> split(const Tensor& A, int chunks, int axis);

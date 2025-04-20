@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -std=c++20 -O2 -Wall -Iinclude -g
+CXXFLAGS = -std=c++20 -O2 -Wall -Iinclude
 
 all: main
 

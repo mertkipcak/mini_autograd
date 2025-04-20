@@ -3,6 +3,7 @@
 #include <stdexcept>
 #include <iostream>
 #include <cassert>
+#include <omp.h>
 
 Tensor randn(const t_shape& shape, bool requires_grad) {
     std::random_device rd;
@@ -17,14 +18,14 @@ Tensor randn(const t_shape& shape, bool requires_grad) {
     return Tensor(data, shape, requires_grad);
 }
 
-bool same_shape(const Tensor& t1, const Tensor& t2) {
-    return t1.get_shape() == t2.get_shape();
+bool same_shape(const Tensor& A, const Tensor& B) {
+    return A.get_shape() == B.get_shape();
 }
 
-std::optional<t_shape> broadcast_shape(const Tensor& t1, const Tensor& t2) {
+std::optional<t_shape> broadcast_shape(const Tensor& A, const Tensor& B) {
     // Setup
-    size_t dim1 = t1.get_shape().size();
-    size_t dim2 = t2.get_shape().size();
+    size_t dim1 = A.get_shape().size();
+    size_t dim2 = B.get_shape().size();
     size_t max_dim = dim1 > dim2 ? dim1 : dim2;
     t_shape s1 = t_shape(max_dim, 1);
     t_shape s2 = t_shape(max_dim, 1);
@@ -33,10 +34,10 @@ std::optional<t_shape> broadcast_shape(const Tensor& t1, const Tensor& t2) {
     // Apply broadcast
     for(size_t i = max_dim; i-- > 0;) {
         if (i + dim1 >= max_dim)
-            s1[i] = t1.get_shape()[i - max_dim + dim1];
+            s1[i] = A.get_shape()[i - max_dim + dim1];
         
         if (i + dim2 >= max_dim)
-            s2[i] = t2.get_shape()[i - max_dim + dim2];
+            s2[i] = B.get_shape()[i - max_dim + dim2];
 
         if (s1[i] == s2[i]) {
             broadcasted_shape[i] = s1[i];
@@ -54,17 +55,17 @@ std::optional<t_shape> broadcast_shape(const Tensor& t1, const Tensor& t2) {
     return broadcasted_shape;
 }
 
-Tensor apply_binary(const Tensor& t1, const Tensor& t2, std::function<float(float, float)> op) {
-    std::optional<t_shape> maybe_shape = broadcast_shape(t1, t2);
+Tensor apply_binary(const Tensor& A, const Tensor& B, std::function<float(float, float)> op) {
+    std::optional<t_shape> maybe_shape = broadcast_shape(A, B);
     if (!maybe_shape.has_value()) throw std::runtime_error("Shape mismatch at Tensor binary operations");
 
     t_shape shape = maybe_shape.value();
 
-    Tensor res(t_data(numel_shape(shape)), shape, t1.get_requires_grad() || t2.get_requires_grad());
+    Tensor res(t_data(numel_shape(shape)), shape, A.get_requires_grad() || B.get_requires_grad());
 
     for(TensorIterator it(shape); !it.done(); it.inc()) {
         t_indices indices = it.get();
-        res.at(indices) = op(t1.broadcasted_at(indices, shape), t2.broadcasted_at(indices, shape));
+        res.at(indices) = op(A.broadcasted_at(indices, shape), B.broadcasted_at(indices, shape));
     }
 
     return res;
@@ -84,108 +85,193 @@ Tensor apply_unary(const Tensor& t, std::function<float(float)> op) {
     );
 }
 
-void dot_contiguous(const Tensor& t1, const Tensor& t2, Tensor& res) {
-    const t_data& d1 = t1.get_data();
-    const t_data& d2 = t2.get_data();
-    t_data& dr = res.get_data();
+Tensor matmul_contiguous(const Tensor& A, const Tensor& B) {
+    const t_shape& shape_A = A.get_shape();
+    const t_shape& shape_B = B.get_shape();
+    const t_data& data_A = A.get_data();
+    const t_data& data_B = B.get_data();
 
-    t_shape s1 = t1.get_shape();
-    t_shape s2 = t2.get_shape();
-    t_shape sr = res.get_shape();
+    const int ndim_A = shape_A.size();
+    const int M = shape_A[ndim_A - 2];
+    const int K = shape_A[ndim_A - 1];
+    const int N = shape_B[1];
 
-    const t_shape& lhs_strides = t1.get_strides();
-    const t_shape& rhs_strides = t2.get_strides();
+    const int B1_size = std::accumulate(shape_A.begin(), shape_A.end() - 2, 1, std::multiplies<>());
+    const int B2_size = std::accumulate(shape_B.begin() + 2, shape_B.end(), 1, std::multiplies<>());
 
-    for (TensorIterator it(sr); !it.done(); it.inc()) {
-        t_indices indices = it.get();
-        int lhs_flat = 0, rhs_flat = 0;
-        for (size_t d = 0; d < s1.size() - 1; ++d)
-            lhs_flat += indices[d] * lhs_strides[d];
-        for (size_t d = 1; d < s2.size(); ++d)
-            rhs_flat += indices[s1.size() - 1 + d - 1] * rhs_strides[d];
+    // Output shape: [B1..., M, N, B2...]
+    t_shape out_shape;
+    out_shape.insert(out_shape.end(), shape_A.begin(), shape_A.end() - 2);
+    out_shape.push_back(M);
+    out_shape.push_back(N);
+    out_shape.insert(out_shape.end(), shape_B.begin() + 2, shape_B.end());
 
-        float value = 0.0f;
-        for (int k = 0; k < s1.back(); ++k)
-            value += d1[lhs_flat + k * lhs_strides[s1.size() - 1]] *
-                        d2[rhs_flat + k * rhs_strides[0]];
+    const int total_blocks = B1_size * B2_size;
+    const int result_stride = M * N;
 
-        dr[it.get_offset()] = value;
-    }
-}
+    t_data result(total_blocks * result_stride, 0.0f);
 
-void dot_generic(const Tensor& t1, const Tensor& t2, Tensor& res) {
-    t_shape s1 = t1.get_shape();
-    t_shape s2 = t2.get_shape();
-    t_shape lhs_index(s1.size());
-    t_shape rhs_index(s2.size());
+    // Block sizes — tuned for L1 cache
+    constexpr int BM = 64;
+    constexpr int BN = 64;
+    constexpr int BK = 64;
 
-    for(TensorIterator it(res.get_shape()); !it.done(); it.inc()) {
-        t_indices indices = it.get();
-        t_indices left_indices = indices.subspan(0, s1.size() - 1);
-        t_indices right_indices = indices.subspan(s1.size() - 1);
-        std::copy(left_indices.begin(), left_indices.end(), lhs_index.begin());
-        std::copy(right_indices.begin(), right_indices.end(), rhs_index.begin() + 1);
+    #pragma omp parallel for collapse(2)
+    for (int b1 = 0; b1 < B1_size; ++b1) {
+        for (int b2 = 0; b2 < B2_size; ++b2) {
+            const float* __restrict__ A_batch = data_A.data() + b1 * M * K;
+            const float* __restrict__ B_batch = data_B.data() + b2 * K * N;
+            float* __restrict__ C_batch = result.data() + (b1 * B2_size + b2) * M * N;
 
-        float value = 0;
+            for (int i0 = 0; i0 < M; i0 += BM) {
+                for (int j0 = 0; j0 < N; j0 += BN) {
+                    float local_c[BM][BN] = {{0}};
 
-        for(size_t i = 0; i < s1.back(); i++) {
-            lhs_index[s1.size() - 1] = i;
-            rhs_index[0] = i;
+                    const int i_end = std::min(i0 + BM, M);
+                    const int j_end = std::min(j0 + BN, N);
 
-            t_indices li(lhs_index);
-            t_indices ri(rhs_index);
+                    for (int k0 = 0; k0 < K; k0 += BK) {
+                        const int k_end = std::min(k0 + BK, K);
+                        for (int i = i0; i < i_end; ++i) {
+                            for (int k = k0; k < k_end; ++k) {
+                                float a_val = A_batch[i * K + k];
+                                #pragma omp simd
+                                for (int j = j0; j < j_end; ++j) {
+                                    local_c[i - i0][j - j0] += a_val * B_batch[k * N + j];
+                                }
+                            }
+                        }
+                    }
 
-            value += t1.at(li) * t2.at(ri);
+                    for (int i = i0; i < i_end; ++i) {
+                        for (int j = j0; j < j_end; ++j) {
+                            C_batch[i * N + j] = local_c[i - i0][j - j0];
+                        }
+                    }
+                }
+            }
         }
-
-        res.at(indices) = value;
     }
+
+    return Tensor(result, out_shape);
 }
 
-Tensor dot(const Tensor& t1, const Tensor& t2) {
-    // Assertions and setup
-    t_shape s1 = t1.get_shape();
-    t_shape s2 = t2.get_shape();
 
-    assert(!s1.empty() && !s2.empty());
-    assert(s1.back() == s2.front());
-    
-    t_shape new_shape;
-    new_shape.reserve(s1.size() + s2.size() - 2);
-    new_shape.insert(new_shape.end(), s1.begin(), s1.end() - 1);
-    new_shape.insert(new_shape.end(), s2.begin() + 1, s2.end());
+Tensor matmul_generic(const Tensor& A, const Tensor& B) {
+    const t_shape& shape_A = A.get_shape();
+    const t_shape& strides_A = A.get_strides();
+    const t_shape& shape_B = B.get_shape();
+    const t_shape& strides_B = B.get_strides();
+    const t_data& data_A = A.get_data();
+    const t_data& data_B = B.get_data();
 
-    int new_size = numel_shape(new_shape);
-    t_data new_data(new_size, 0.0f);
-    bool required_grad = t1.get_requires_grad() || t2.get_requires_grad();
-    Tensor res(new_data, new_shape, required_grad);
+    const int ndim_A = shape_A.size();
+    const int ndim_B = shape_B.size();
+    const int M = shape_A[ndim_A - 2];
+    const int K = shape_A[ndim_A - 1];
+    const int N = shape_B[1];
+
+    t_shape B1_shape(shape_A.begin(), shape_A.end() - 2);
+    t_shape B2_shape(shape_B.begin() + 2, shape_B.end());
+
+    // Output shape = [B1..., M, N, B2...]
+    t_shape out_shape;
+    out_shape.insert(out_shape.end(), B1_shape.begin(), B1_shape.end());
+    out_shape.push_back(M);
+    out_shape.push_back(N);
+    out_shape.insert(out_shape.end(), B2_shape.begin(), B2_shape.end());
+
+    // Compute row-major strides for output
+    t_shape out_strides(out_shape.size());
+    int stride = 1;
+    for (int i = (int)out_shape.size() - 1; i >= 0; --i) {
+        out_strides[i] = stride;
+        stride *= out_shape[i];
+    }
+
+    t_data out_data(stride, 0.0f); // Preallocate
+
+    // Helpers for multi-index traversal
+    auto offset = [](const t_shape& index, const t_shape& strides) -> int {
+        int off = 0;
+        for (size_t i = 0; i < index.size(); ++i) {
+            off += index[i] * strides[i];
+        }
+        return off;
+    };
+
+    auto advance_index = [](t_shape& idx, const t_shape& shape) -> bool {
+        for (int i = (int)shape.size() - 1; i >= 0; --i) {
+            if (++idx[i] < shape[i]) return true;
+            idx[i] = 0;
+        }
+        return false;
+    };
+
+    // Iterate B1 x B2 index combinations
+    t_shape B1_idx(B1_shape.size(), 0);
+    t_shape B2_idx(B2_shape.size(), 0);
+
+    do {
+        do {
+            int offset_A_base = offset(B1_idx, strides_A);
+            int offset_B_base = offset(B2_idx, t_shape(strides_B.begin() + 2, strides_B.end()));
+
+            for (int i = 0; i < M; ++i) {
+                for (int j = 0; j < N; ++j) {
+                    float acc = 0.0f;
+                    for (int k = 0; k < K; ++k) {
+                        int a_idx = offset_A_base + i * strides_A[ndim_A - 2] + k * strides_A[ndim_A - 1];
+                        int b_idx = k * strides_B[0] + j * strides_B[1] + offset_B_base;
+                        acc += data_A[a_idx] * data_B[b_idx];
+                    }
+
+                    t_shape out_idx;
+                    out_idx.insert(out_idx.end(), B1_idx.begin(), B1_idx.end());
+                    out_idx.push_back(i);
+                    out_idx.push_back(j);
+                    out_idx.insert(out_idx.end(), B2_idx.begin(), B2_idx.end());
+                    int out_offset = offset(out_idx, out_strides);
+                    out_data[out_offset] = acc;
+                }
+            }
+
+        } while (advance_index(B2_idx, B2_shape));
+    } while (advance_index(B1_idx, B1_shape));
+
+    return Tensor(out_data, out_shape, out_strides);
+}
+
+
+Tensor matmul(const Tensor& A, const Tensor& B) {
+    // Assertions
+    assert(!A.get_shape().empty() && !B.get_shape().empty());
+    assert(A.get_shape().back() == B.get_shape().front());
 
     // Matmul
-    if (t1.get_contiguous() && t2.get_contiguous()) {
-        dot_contiguous(t1, t2, res);
+    if (A.get_contiguous() && B.get_contiguous()) {
+        return matmul_contiguous(A, B);
     } else {
-        dot_generic(t1, t2, res);
+        return matmul_generic(A, B);
     }
-    
-    return res;
 }
 
-Tensor add(const Tensor& t1, const Tensor& t2) {
-    return apply_binary(t1, t2, [](float x, float y) { return x + y; });
+Tensor add(const Tensor& A, const Tensor& B) {
+    return apply_binary(A, B, [](float x, float y) { return x + y; });
 }
 
-Tensor mul(const Tensor& t1, const Tensor& t2) {
-    return apply_binary(t1, t2, [](float x, float y) { return x * y; });
+Tensor mul(const Tensor& A, const Tensor& B) {
+    return apply_binary(A, B, [](float x, float y) { return x * y; });
 }
 
-Tensor sigmoid(const Tensor& t) {
-    return apply_unary(t, [](float x) { return sigmoid(x); });
+Tensor sigmoid(const Tensor& A) {
+    return apply_unary(A, [](float x) { return sigmoid(x); });
 }
 
-Tensor exp(const Tensor& t) {
-    return apply_unary(t, [](float x) { return exp(x); });
+Tensor exp(const Tensor& A) {
+    return apply_unary(A, [](float x) { return exp(x); });
 }
 
-Tensor log(const Tensor& t) {
-    return apply_unary(t, [](float x) { return log(x); });
+Tensor log(const Tensor& A) {
+    return apply_unary(A, [](float x) { return log(x); });
 }

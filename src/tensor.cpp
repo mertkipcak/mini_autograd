@@ -47,7 +47,7 @@ Tensor::Tensor(
     contiguous = is_contiguous();
 
     if (make_contiguous && !contiguous) {
-        
+
     }
 
     // Setup grad
@@ -124,6 +124,16 @@ std::string Tensor::to_string() const {
         }
     }
 
+    ss << ", strides=[";
+    for (size_t i = 0; i < strides.size(); ++i) {
+        ss << strides[i];
+        if (i != strides.size() - 1) {
+            ss << ", ";
+        }
+    }
+
+    ss << "], is_contiguous=" << (is_contiguous() ? "True" : "False");
+
     ss << ", requires_grad=" << (requires_grad ? "True" : "False");
 
     ss << ", data=[";
@@ -146,10 +156,9 @@ std::string Tensor::to_string() const {
 
 Tensor Tensor::transpose() const {
     if (shape.size() == 1) {
-        t_shape new_shape = {1, shape[0]};
-        t_shape new_strides = {shape[0], 1};
-        t_data new_data(data);
-        return Tensor(new_data, new_shape, requires_grad);
+        t_shape new_shape = {shape[0], 1};
+        t_shape new_strides = {1, shape[0]};
+        return Tensor(data, new_shape, new_strides, requires_grad);
     }
 
     t_shape new_shape(shape);
@@ -157,9 +166,31 @@ Tensor Tensor::transpose() const {
 
     t_shape new_strides(strides);
     std::swap(new_strides[new_strides.size() - 2], new_strides[new_strides.size() - 1]);
-    t_data new_data(data);
-    return Tensor(new_data, new_shape, requires_grad);
+
+    // If tensor is contiguous, we return a view-like result by simply adjusting the shape and strides.
+    if (get_contiguous()) {
+        return Tensor(data, new_shape, new_strides, requires_grad);
+    }
+
+    // If tensor is not contiguous, we will need to copy the data
+    t_data new_data(data.size());
+    
+    size_t stride_in = strides[strides.size() - 2];
+    size_t stride_out = new_strides[strides.size() - 2];
+    
+    size_t idx_in, idx_out;
+    for (size_t i = 0; i < shape[shape.size() - 2]; ++i) {
+        for (size_t j = 0; j < shape[shape.size() - 1]; ++j) {
+            idx_in = i * stride_in + j;
+            idx_out = j * stride_out + i;
+            new_data[idx_out] = data[idx_in];
+        }
+    }
+
+    // Return a new tensor with transposed data and updated shape and strides
+    return Tensor(new_data, new_shape, new_strides, requires_grad);
 }
+
 
 void Tensor::backward() {}
 
