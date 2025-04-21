@@ -11,8 +11,8 @@ void test_accuracy() {
         4, 5, 6
     };
     std::vector<int> a_shape = {1, 6};
-    Tensor A(a_data, a_shape);
-    std::cout << A.to_string() << std::endl;
+    t_tensor A = create_tensor(a_data, a_shape);
+    std::cout << A->to_string() << std::endl;
 
 
     // Tensor B: shape (3, 2)
@@ -22,24 +22,24 @@ void test_accuracy() {
         11, 12
     };
     std::vector<int> b_shape = {6};
-    Tensor B(b_data, b_shape);
-    std::cout << B.to_string() << std::endl;
+    t_tensor B = create_tensor(b_data, b_shape);
+    std::cout << B->to_string() << std::endl;
 
-    Tensor C = matmul(A, B);
-    std::cout << C.to_string() << std::endl;
+    t_tensor C = matmul(A, B);
+    std::cout << C->to_string() << std::endl;
 }
 
 void test_unary_speed() {
-    Tensor A = randn({4096, 4096, 8});
+    t_tensor A = randn({4096, 4096, 8});
 
     auto start1 = std::chrono::high_resolution_clock::now();
-    Tensor B = exp(A);
+    t_tensor B = exp(A);
     auto end1 = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed1 = end1 - start1;
     std::cout << "Optimized time: " << elapsed1.count() << " seconds" << std::endl;
 
     auto start2 = std::chrono::high_resolution_clock::now();
-    Tensor C = apply_binary(A, A, [](float x, float y){ return exp(x); });
+    t_tensor C = apply_binary(A->transpose(), A->transpose(), [](float x, float y){ return exp(x); });
     auto end2 = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed2 = end2 - start2;
     std::cout << "Non-optimized time: " << elapsed2.count() << " seconds" << std::endl;
@@ -47,26 +47,25 @@ void test_unary_speed() {
 
 void test_speed() {
     // Use large shapes for benchmarking
-    Tensor A = randn({2048, 2048});
-    Tensor B = randn({2048, 2048});
+    t_tensor A = randn({2048, 2048});
+    t_tensor B = randn({2048, 2048});
 
     // Contiguous matmul
     auto start1 = std::chrono::high_resolution_clock::now();
-    Tensor C1 = matmul(A, B);
+    t_tensor C1 = matmul(A, B);
     auto end1 = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed1 = end1 - start1;
     std::cout << "Contiguous matmul time: " << elapsed1.count() << " seconds" << std::endl;
 
     // Non-contiguous matmul
     auto start2 = std::chrono::high_resolution_clock::now();
-    Tensor C2 = matmul(A, B.transpose());
+    t_tensor C2 = matmul(A, B->transpose());
     auto end2 = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed2 = end2 - start2;
     std::cout << "Non-contiguous matmul time: " << elapsed2.count() << " seconds" << std::endl;
 }
 
 int main() {
-    test_unary_speed();
-
+    test_accuracy();
     return 0;
 }

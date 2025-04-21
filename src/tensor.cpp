@@ -161,11 +161,11 @@ std::string Tensor::to_string() const {
     return ss.str();
 }
 
-Tensor Tensor::transpose() const {
+t_tensor Tensor::transpose() const {
     if (shape.size() == 1) {
         t_shape new_shape = {shape[0], 1};
         t_shape new_strides = {1, shape[0]};
-        return Tensor(data, new_shape, new_strides, requires_grad);
+        return create_tensor(data, new_shape, new_strides, requires_grad);
     }
 
     t_shape new_shape(shape);
@@ -176,7 +176,7 @@ Tensor Tensor::transpose() const {
 
     // If tensor is contiguous, we return a view-like result by simply adjusting the shape and strides.
     if (get_contiguous()) {
-        return Tensor(data, new_shape, new_strides, requires_grad);
+        return create_tensor(data, new_shape, new_strides, requires_grad);
     }
 
     // If tensor is not contiguous, we will need to copy the data
@@ -195,11 +195,13 @@ Tensor Tensor::transpose() const {
     }
 
     // Return a new tensor with transposed data and updated shape and strides
-    return Tensor(new_data, new_shape, new_strides, requires_grad);
+    return create_tensor(new_data, new_shape, new_strides, requires_grad);
 }
 
 
-void Tensor::backward() {}
+void Tensor::backward() {
+
+}
 
 void Tensor::zero_grad() {
     grad.assign(data.size(), 0.0f);
@@ -211,4 +213,8 @@ size_t Tensor::numel() const {
 
 bool Tensor::has_creator() const { return !creators.empty(); }
 
-void Tensor::build_grad() {}
+std::vector<t_tensor> Tensor::topo_sort() const {
+    std::vector<t_tensor> res = creators;
+
+    return res;
+}

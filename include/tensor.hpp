@@ -121,6 +121,31 @@ class Tensor {
          * @return Const reference to the grad value at the specified position
          */
         const float& grad_at(t_indices& indices) const;
+
+        /**
+         * @brief Add a new creator to this matrix
+         * @param creator Pointer to the tensor that created this
+         * @return Adds creator to the list of creators
+         */
+        void add_creator(const std::shared_ptr<Tensor> creator) { creators.push_back(creator); }
+
+        /**
+         * @brief Get the list of creator tensors for this tensor
+         * @return A vector of shared pointers to the creator tensors
+         */
+        const std::vector<std::shared_ptr<Tensor>> get_creators() const { return creators; }
+
+        /**
+         * @brief Check if the tensor is a leaf node in the computation graph
+         * @return True if the tensor is a leaf (not the result of an operation)
+         */
+        bool is_leaf() const { return leaf; };
+
+        /**
+         * @brief Set whether the tensor is a leaf node in the computation graph
+         * @param leaf_ True if the tensor should be marked as a leaf
+         */
+        void set_leaf(bool leaf_) { leaf = leaf_; }
     
         /**
          * @brief Perform backpropagation starting from this tensor
@@ -144,7 +169,7 @@ class Tensor {
          */
         std::string to_string() const;
 
-        Tensor transpose() const;
+        std::shared_ptr<Tensor> transpose() const;
     
     private:
         t_data data;         // Tensor values
@@ -153,8 +178,9 @@ class Tensor {
         t_shape strides;        // Memory layout for indexing
         bool contiguous;    // Is memory layed out row-major order
         bool requires_grad;              // Whether to track gradients
+        bool leaf;
         std::vector<std::shared_ptr<Tensor>> creators;  // Input tensors that created this
-        std::function<void(const Tensor& output_grad)> backward_fn;  // Function to backpropagate gradients
+        std::function<void()> backward_fn;  // Function to backpropagate gradients
     
         /**
          * @brief Check if the tensor data is stored in a contiguous layout
@@ -171,10 +197,16 @@ class Tensor {
         /**
          * @brief Initialize gradient storage
          */
-        void build_grad();
+        std::vector<std::shared_ptr<Tensor>> topo_sort() const;
 
         /**
          * @brief Get the flat index of the data given indices
          */
         int get_flat_index(const t_indices& indices) const;
-    };
+};
+
+using t_tensor = std::shared_ptr<Tensor>;
+template<typename... Args>
+inline t_tensor create_tensor(Args&&... args) {
+    return std::make_shared<Tensor>(std::forward<Args>(args)...);
+}
