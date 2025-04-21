@@ -146,6 +146,12 @@ class Tensor {
          * @param leaf_ True if the tensor should be marked as a leaf
          */
         void set_leaf(bool leaf_) { leaf = leaf_; }
+
+        /**
+         * @brief Set the function to be run on autodoff
+         * @param fn The function to set backward_fn to
+         */
+        void set_backward_fn(std::function<void()> fn) { backward_fn = fn; }
     
         /**
          * @brief Perform backpropagation starting from this tensor

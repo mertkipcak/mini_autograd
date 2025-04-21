@@ -93,3 +93,8 @@ t_tensor exp(const t_tensor& input);
  * @return New tensor with log applied
  */
 t_tensor log(const t_tensor& input);
+
+/**
+ * @brief sum the elements of the matrics, across a dimension if given
+ */
+t_tensor sum(const t_tensor& input, int dim = -1);
