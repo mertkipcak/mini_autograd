@@ -12,7 +12,7 @@
 /**
  * @brief A multidimensional array implementation supporting automatic differentiation
  */
-class Tensor {
+class Tensor : public std::enable_shared_from_this<Tensor> {
     public:
         /**
          * @brief Construct a new Tensor
@@ -203,7 +203,7 @@ class Tensor {
         /**
          * @brief Initialize gradient storage
          */
-        std::vector<std::shared_ptr<Tensor>> topo_sort() const;
+        std::vector<std::shared_ptr<Tensor>> topo_sort();
 
         /**
          * @brief Get the flat index of the data given indices

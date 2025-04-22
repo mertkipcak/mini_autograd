@@ -2,6 +2,7 @@
 #include <cassert>
 #include <iostream>
 #include <sstream>
+#include <unordered_set>
 
 Tensor::Tensor(
     const t_data& data_,
@@ -157,6 +158,22 @@ std::string Tensor::to_string() const {
     }
 
     ss << "])";
+
+    if (!requires_grad) return ss.str();
+
+    ss << ", grad=[";
+    for (size_t i = 0; i < preview_size; ++i) {
+        ss << grad[i];
+        if (i != preview_size - 1) {
+            ss << ", ";
+        }
+    }
+
+    if (grad.size() > limit) {
+        ss << ", ...";
+    }
+
+    ss << "])";
     
     return ss.str();
 }
@@ -198,9 +215,23 @@ t_tensor Tensor::transpose() const {
     return create_tensor(new_data, new_shape, new_strides, requires_grad);
 }
 
-
 void Tensor::backward() {
+    if(!requires_grad) throw std::runtime_error("Can not call backward() on a node that doesn't require grad");
 
+    for(size_t i = 1; i < shape.size(); i++)
+        if (shape[i] != 1) 
+            throw std::runtime_error("Can only call backward on a scalar");
+    
+    grad = t_data({1});
+    std::vector<t_tensor> all_nodes = topo_sort();
+
+    for(const t_tensor& node : all_nodes)
+        node->zero_grad();
+
+
+    for(const t_tensor& node : all_nodes)
+        if (node->get_requires_grad())
+            node->backward_fn();
 }
 
 void Tensor::zero_grad() {
@@ -213,8 +244,21 @@ size_t Tensor::numel() const {
 
 bool Tensor::has_creator() const { return !creators.empty(); }
 
-std::vector<t_tensor> Tensor::topo_sort() const {
-    std::vector<t_tensor> res = creators;
+std::vector<t_tensor> Tensor::topo_sort() {
+    std::vector<t_tensor> sorted_tensors;
+    std::unordered_set<t_tensor> visited;
+    
+    std::function<void(const t_tensor&)> dfs = [&](const t_tensor& node) {
+        if (visited.contains(node)) return;
+        visited.insert(node);
+        for (const t_tensor& creator : node->creators) {
+            dfs(creator);
+        }
 
-    return res;
+        sorted_tensors.push_back(node);
+    };
+    
+    dfs(shared_from_this());
+    
+    return sorted_tensors;
 }

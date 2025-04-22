@@ -65,7 +65,21 @@ void test_speed() {
     std::cout << "Non-contiguous matmul time: " << elapsed2.count() << " seconds" << std::endl;
 }
 
+void test_backprop() {
+    t_tensor A = randn({1, 1}, true);
+    t_tensor B = randn({1, 1}, true);
+    t_tensor C = randn({1, 1}, true);
+    t_tensor F = sigmoid(add(C, mul(A, B)));
+
+    F->backward();
+
+    std::cout << A->to_string() << std::endl;
+    std::cout << B->to_string() << std::endl;
+    std::cout << C->to_string() << std::endl;
+    std::cout << F->to_string() << std::endl;
+}
+
 int main() {
-    test_accuracy();
+    test_backprop();
     return 0;
 }
