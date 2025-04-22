@@ -66,10 +66,10 @@ void test_speed() {
 }
 
 void test_backprop() {
-    t_tensor A = randn({1, 1}, true);
-    t_tensor B = randn({1, 1}, true);
-    t_tensor C = randn({1, 1}, true);
-    t_tensor F = sigmoid(add(C, mul(A, B)));
+    t_tensor A = create_tensor(t_data({1}), t_shape({1, 1}), true);
+    t_tensor B = create_tensor(t_data({2}), t_shape({1, 1}), true);
+    t_tensor C = create_tensor(t_data({3}), t_shape({1, 1}), true);
+    t_tensor F = add(A, mul(B, C));
 
     F->backward();
 

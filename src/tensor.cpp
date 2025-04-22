@@ -222,16 +222,19 @@ void Tensor::backward() {
         if (shape[i] != 1) 
             throw std::runtime_error("Can only call backward on a scalar");
     
-    grad = t_data({1});
     std::vector<t_tensor> all_nodes = topo_sort();
 
     for(const t_tensor& node : all_nodes)
         node->zero_grad();
 
+    grad = t_data({1});
 
-    for(const t_tensor& node : all_nodes)
-        if (node->get_requires_grad())
+    for(size_t i = all_nodes.size(); i-- > 0;) {
+        t_tensor& node = all_nodes[i];
+        if (node->get_requires_grad() && !node->creators.empty())
             node->backward_fn();
+    }
+        
 }
 
 void Tensor::zero_grad() {
