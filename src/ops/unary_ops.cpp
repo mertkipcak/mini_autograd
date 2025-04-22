@@ -14,7 +14,7 @@ t_tensor apply_unary_t(const t_tensor& input, Op op) {
 
     return create_tensor(
         output_data,
-        std::vector<int>(input->get_shape()),
+        t_shape(input->get_shape()),
         input->get_requires_grad()
     );
 }

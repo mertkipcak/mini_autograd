@@ -16,7 +16,7 @@ Tensor::Tensor(
 
     // Setup strides
     strides = t_shape(shape.size(), 1);
-    for(int i = shape.size() - 2; i >= 0; i--) {
+    for(size_t i = shape.size() - 2; i >= 0; i--) {
         strides[i] = strides[i+1] * shape[i+1];
     }
     contiguous = is_contiguous();
@@ -69,8 +69,8 @@ void Tensor::set_requires_grad(bool new_requires_grad) {
     }
 }
 
-int Tensor::get_flat_index(const t_indices& indices) const {
-    int flat_index = 0;
+size_t Tensor::get_flat_index(const t_indices& indices) const {
+    size_t flat_index = 0;
     for(size_t i = 0; i < shape.size(); i++) {
         assert(indices[i] >= 0 && indices[i] < shape[i]);
         flat_index += indices[i] * strides[i];
@@ -89,7 +89,7 @@ const float& Tensor::at(t_indices& indices) const {
 
 
 const float& Tensor::broadcasted_at(const t_indices& indices, const t_shape& broadcasted_shape) const {
-    int flat_index = 0;
+    size_t flat_index = 0;
     for(size_t i = 1; i <= shape.size(); i ++) {
         size_t bo = broadcasted_shape.size() - i; // broadcasted offset
         size_t o = shape.size() - i; // offset
@@ -110,7 +110,7 @@ const float& Tensor::grad_at(t_indices& indices) const {
 };
 
 bool Tensor::is_contiguous() const {
-    int stride = 1;
+    size_t stride = 1;
     for (size_t i = shape.size(); i-- > 0;) {  
         if (strides[i] != stride) return false;
         stride *= shape[i];
@@ -203,8 +203,8 @@ t_tensor Tensor::transpose() const {
     size_t stride_out = new_strides[strides.size() - 2];
     
     size_t idx_in, idx_out;
-    for (int i = 0; i < shape[shape.size() - 2]; ++i) {
-        for (int j = 0; j < shape[shape.size() - 1]; ++j) {
+    for (size_t i = 0; i < shape[shape.size() - 2]; ++i) {
+        for (size_t j = 0; j < shape[shape.size() - 1]; ++j) {
             idx_in = i * stride_in + j;
             idx_out = j * stride_out + i;
             new_data[idx_out] = data[idx_in];

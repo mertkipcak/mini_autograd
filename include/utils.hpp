@@ -27,7 +27,7 @@ std::optional<t_shape> broadcast_shape(const t_shape& a, const t_shape& b);
  * @param size The desired size of the output shape
  * @return A new shape vector with 1s prepended if needed
  */
-t_shape pad_shape_to_size(const t_shape& shape, size_t size, int pad = 1);
+t_shape pad_shape_to_size(const t_shape& shape, size_t size, size_t pad = 1);
 
 /**
  * @brief Compute the sigmoid function for a single value

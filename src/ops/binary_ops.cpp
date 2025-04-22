@@ -49,7 +49,7 @@ t_tensor apply_binary_t(const t_tensor& a, const t_tensor& b, Op op) {
         size_t flat_index_a = 0;
         size_t flat_index_b = 0;
         
-        for (int dim = static_cast<int>(res_shape.size()) - 1; dim >= 0; --dim) {
+        for (size_t dim = res_shape.size() - 1; dim >= 0; --dim) {
             size_t coord = remaining % res_shape[dim];
             flat_index_a += strides_a[dim] * coord;
             flat_index_b += strides_b[dim] * coord;
@@ -115,7 +115,7 @@ t_tensor binary_with_backward(
             size_t flat_index_a = 0;
             size_t flat_index_b = 0;
             
-            for (int dim = static_cast<int>(res_shape.size()) - 1; dim >= 0; --dim) {
+            for (size_t dim = res_shape.size() - 1; dim >= 0; --dim) {
                 size_t coord = remaining % res_shape[dim];
                 flat_index_a += strides_a[dim] * coord;
                 flat_index_b += strides_b[dim] * coord;

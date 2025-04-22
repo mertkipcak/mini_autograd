@@ -2,7 +2,7 @@
 #include "utils.hpp"
 #include <cassert>
 
-size_t numel_shape(const std::vector<int>& shape) {
+size_t numel_shape(const t_shape& shape) {
     size_t size = 1;
     for(size_t i = 0; i < shape.size(); i++) {
         size *= (size_t) shape.at(i);
@@ -43,7 +43,7 @@ std::optional<t_shape> broadcast_shape(const t_shape& a, const t_shape& b) {
     return broadcasted_shape;
 }
 
-t_shape pad_shape_to_size(const t_shape& shape, size_t size, int pad) {
+t_shape pad_shape_to_size(const t_shape& shape, size_t size, size_t pad) {
     if (shape.size() >= size) {
         return shape;
     }

@@ -208,7 +208,7 @@ class Tensor : public std::enable_shared_from_this<Tensor> {
         /**
          * @brief Get the flat index of the data given indices
          */
-        int get_flat_index(const t_indices& indices) const;
+        size_t get_flat_index(const t_indices& indices) const;
 };
 
 using t_tensor = std::shared_ptr<Tensor>;

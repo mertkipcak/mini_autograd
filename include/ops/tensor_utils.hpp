@@ -16,4 +16,4 @@ t_tensor randn(const t_shape& shape, bool requires_grad=false);
 /**
  * @brief sum the elements of the matrics, across a dimension if given
  */
-t_tensor sum(const t_tensor& input, int dim = -1);
+t_tensor sum(const t_tensor& input, int dim = -1, bool keepdims = false);

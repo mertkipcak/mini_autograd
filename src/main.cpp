@@ -1,4 +1,5 @@
 #include "tensor.hpp"
+#include "types.hpp"
 #include "ops/matmul.hpp"
 #include "ops/binary_ops.hpp"
 #include "ops/tensor_utils.hpp"
@@ -13,7 +14,7 @@ void test_accuracy() {
         1, 2, 3,
         4, 5, 6
     };
-    std::vector<int> a_shape = {1, 6};
+    t_shape a_shape = {1, 6};
     t_tensor A = create_tensor(a_data, a_shape);
     std::cout << A->to_string() << std::endl;
 
@@ -24,7 +25,7 @@ void test_accuracy() {
         9, 10,
         11, 12
     };
-    std::vector<int> b_shape = {6};
+    t_shape b_shape = {6};
     t_tensor B = create_tensor(b_data, b_shape);
     std::cout << B->to_string() << std::endl;
 
