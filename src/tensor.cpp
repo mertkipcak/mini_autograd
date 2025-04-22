@@ -49,7 +49,7 @@ Tensor::Tensor(
 Tensor::Tensor(
     Tensor& other,
     bool requires_grad
-) : data(other.data), shape(other.shape), strides(other.strides), requires_grad(requires_grad) {
+) : std::enable_shared_from_this<Tensor>(other), data(other.data), shape(other.shape), strides(other.strides), requires_grad(requires_grad) {
     if (shape.size() == 1) {
         shape = {shape[0], 1};
     }
@@ -71,7 +71,7 @@ void Tensor::set_requires_grad(bool new_requires_grad) {
 
 int Tensor::get_flat_index(const t_indices& indices) const {
     int flat_index = 0;
-    for(int i = 0; i < shape.size(); i++) {
+    for(size_t i = 0; i < shape.size(); i++) {
         assert(indices[i] >= 0 && indices[i] < shape[i]);
         flat_index += indices[i] * strides[i];
     }
@@ -203,8 +203,8 @@ t_tensor Tensor::transpose() const {
     size_t stride_out = new_strides[strides.size() - 2];
     
     size_t idx_in, idx_out;
-    for (size_t i = 0; i < shape[shape.size() - 2]; ++i) {
-        for (size_t j = 0; j < shape[shape.size() - 1]; ++j) {
+    for (int i = 0; i < shape[shape.size() - 2]; ++i) {
+        for (int j = 0; j < shape[shape.size() - 1]; ++j) {
             idx_in = i * stride_in + j;
             idx_out = j * stride_out + i;
             new_data[idx_out] = data[idx_in];

@@ -1,5 +1,8 @@
 #include "tensor.hpp"
-#include "functional.hpp"
+#include "ops/matmul.hpp"
+#include "ops/binary_ops.hpp"
+#include "ops/tensor_utils.hpp"
+#include "ops/unary_ops.hpp"
 #include <iostream>
 #include <vector>
 #include <chrono>
@@ -39,7 +42,7 @@ void test_unary_speed() {
     std::cout << "Optimized time: " << elapsed1.count() << " seconds" << std::endl;
 
     auto start2 = std::chrono::high_resolution_clock::now();
-    t_tensor C = apply_binary(A->transpose(), A->transpose(), [](float x, float y){ return exp(x); });
+    t_tensor C = apply_binary(A->transpose(), A->transpose(), [](float x, float /*y*/){ return exp(x); });
     auto end2 = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed2 = end2 - start2;
     std::cout << "Non-optimized time: " << elapsed2.count() << " seconds" << std::endl;
@@ -80,6 +83,6 @@ void test_backprop() {
 }
 
 int main() {
-    test_backprop();
+    test_speed();
     return 0;
 }
