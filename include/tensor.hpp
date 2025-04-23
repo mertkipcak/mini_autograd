@@ -176,6 +176,8 @@ class Tensor : public std::enable_shared_from_this<Tensor> {
         std::string to_string() const;
 
         std::shared_ptr<Tensor> transpose() const;
+
+        size_t ndim() const { return shape.size(); };
     
     private:
         t_data data;         // Tensor values

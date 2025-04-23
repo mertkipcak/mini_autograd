@@ -1,4 +1,4 @@
-#include "ops/unary_ops.hpp"
+#include "ops.hpp"
 #include <omp.h>
 
 template<typename Op>

@@ -1,12 +1,10 @@
 #include "tensor.hpp"
 #include "types.hpp"
-#include "ops/matmul.hpp"
-#include "ops/binary_ops.hpp"
-#include "ops/tensor_utils.hpp"
-#include "ops/unary_ops.hpp"
+#include "ops.hpp"
 #include <iostream>
 #include <vector>
 #include <chrono>
+#include <cassert>
 
 void test_accuracy() {
      // Tensor A: shape (2, 3)
@@ -84,6 +82,6 @@ void test_backprop() {
 }
 
 int main() {
-    test_speed();
+    
     return 0;
 }

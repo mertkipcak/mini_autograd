@@ -1,4 +1,4 @@
-#include "ops/tensor_utils.hpp"
+#include "ops.hpp"
 #include "utils.hpp"
 #include <omp.h>
 

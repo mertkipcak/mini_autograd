@@ -1,4 +1,4 @@
-#include "ops/matmul.hpp"
+#include "ops.hpp"
 #include <cassert>
 #include <numeric>
 #include <omp.h>
@@ -100,7 +100,7 @@ t_tensor matmul_generic(const t_tensor& a, const t_tensor& b) {
     // Compute row-major strides for output
     t_shape out_strides(out_shape.size());
     size_t stride = 1;
-    for (size_t i = out_shape.size() - 1; i >= 0; --i) {
+    for (size_t i = out_shape.size(); i-- > 0;) {
         out_strides[i] = stride;
         stride *= out_shape[i];
     }
@@ -117,7 +117,7 @@ t_tensor matmul_generic(const t_tensor& a, const t_tensor& b) {
     };
 
     auto advance_index = [](t_shape& index, const t_shape& shape) -> bool {
-        for (size_t i = shape.size() - 1; i >= 0; --i) {
+        for (size_t i = shape.size(); i-- > 0;) {
             if (++index[i] < shape[i]) return true;
             index[i] = 0;
         }

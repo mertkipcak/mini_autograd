@@ -11,6 +11,10 @@ size_t numel_shape(const t_shape& shape) {
 }
 
 std::optional<t_shape> broadcast_shape(const t_shape& a, const t_shape& b) {
+    // Scalar check
+    if (!a.size()) return b;
+    if (!b.size()) return a;
+
     // Setup
     size_t dim_a = a.size();
     size_t dim_b = b.size();

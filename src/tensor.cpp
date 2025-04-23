@@ -9,16 +9,14 @@ Tensor::Tensor(
     const t_shape& shape_,
     bool requires_grad_
 ) : data(data_), shape(shape_), requires_grad(requires_grad_) {
-    if (shape.size() == 1) {
-        shape = {shape[0], 1};
-    }
     assert(numel_shape(shape) == data.size());
 
     // Setup strides
     strides = t_shape(shape.size(), 1);
-    for(size_t i = shape.size() - 2; i >= 0; i--) {
-        strides[i] = strides[i+1] * shape[i+1];
-    }
+    if (shape.size() > 1) 
+        for(size_t i = shape.size() - 1; i-- > 0;)
+            strides[i] = strides[i+1] * shape[i+1];
+
     contiguous = is_contiguous();
 
     // Setup grad
@@ -33,9 +31,6 @@ Tensor::Tensor(
     const t_shape& strides_,
     bool requires_grad
 ) : data(data_), shape(shape_), strides(strides_), requires_grad(requires_grad) {
-    if (shape.size() == 1) {
-        shape = {shape[0], 1};
-    }
     assert(numel_shape(shape) == data.size());
 
     contiguous = is_contiguous();
@@ -50,9 +45,6 @@ Tensor::Tensor(
     Tensor& other,
     bool requires_grad
 ) : std::enable_shared_from_this<Tensor>(other), data(other.data), shape(other.shape), strides(other.strides), requires_grad(requires_grad) {
-    if (shape.size() == 1) {
-        shape = {shape[0], 1};
-    }
     contiguous = is_contiguous();
 
     // Setup grad
