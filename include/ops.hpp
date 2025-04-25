@@ -32,7 +32,7 @@ t_tensor add(const t_tensor& a, const t_tensor& b);
 t_tensor mul(const t_tensor& a, const t_tensor& b);
 
 /**
- * @brief Create a new tensor from the matrix multiplication of two tensors
+ * @brief Create a new tensor from the tensor multiplication of two tensors
  * @param a First tensor
  * @param b Second tensor
  * @return New tensor containing the result
@@ -40,17 +40,22 @@ t_tensor mul(const t_tensor& a, const t_tensor& b);
 t_tensor matmul(const t_tensor& a, const t_tensor& b);
 
 /**
- * @brief Get a matrix with a given shape initialized with normal random weights
- * @param shape Shape of the return matrix
+ * @brief Get a tensor with a given shape initialized with normal random weights
+ * @param shape Shape of the return tensor
  * @param requires_grad Wheter to track gradients or not
- * @return Random matrix
+ * @return Random tensor
  */
 t_tensor randn(const t_shape& shape, bool requires_grad=false);
 
 /**
- * @brief sum the elements of the matrics, across a dimension if given
+ * @brief sum the elements of the tensor, across a given dimension
  */
-t_tensor sum(const t_tensor& input, int dim = -1, bool keepdims = false);
+t_tensor sum(const t_tensor& input, size_t dim, bool keepdims = false);
+
+/**
+ * @brief sum all the elements of the tensor
+ */
+t_tensor sumall(const t_tensor& input);
 
 /**
  * @brief Apply an operation element-wise to a tensor

@@ -2,14 +2,6 @@
 #include "utils.hpp"
 #include <cassert>
 
-size_t numel_shape(const t_shape& shape) {
-    size_t size = 1;
-    for(size_t i = 0; i < shape.size(); i++) {
-        size *= (size_t) shape.at(i);
-    }
-    return size;
-}
-
 std::optional<t_shape> broadcast_shape(const t_shape& a, const t_shape& b) {
     // Scalar check
     if (!a.size()) return b;
@@ -46,17 +38,3 @@ std::optional<t_shape> broadcast_shape(const t_shape& a, const t_shape& b) {
 
     return broadcasted_shape;
 }
-
-t_shape pad_shape_to_size(const t_shape& shape, size_t size, size_t pad) {
-    if (shape.size() >= size) {
-        return shape;
-    }
-    t_shape padded(size, pad);
-    std::copy(shape.begin(), shape.end(), padded.end() - shape.size());
-    return padded;
-}
-
-float sigmoid(float x) {
-    return 1 / (1 + exp(-x));
-}
-

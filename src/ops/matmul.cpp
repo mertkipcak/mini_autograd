@@ -35,8 +35,8 @@ t_tensor matmul_contiguous(const t_tensor& a, const t_tensor& b) {
     constexpr size_t BK = 64;
 
     #pragma omp parallel for collapse(2)
-    for (size_t batch_a = 0; batch_a < batch_size_a; ++batch_a) {
-        for (size_t batch_b = 0; batch_b < batch_size_b; ++batch_b) {
+    for (size_t batch_a = 0; batch_a < batch_size_a; batch_a++) {
+        for (size_t batch_b = 0; batch_b < batch_size_b; batch_b++) {
             const float* __restrict__ batch_data_a = data_a.data() + batch_a * M * K;
             const float* __restrict__ batch_data_b = data_b.data() + batch_b * K * N;
             float* __restrict__ batch_data_out = result_data.data() + (batch_a * batch_size_b + batch_b) * M * N;
@@ -50,19 +50,19 @@ t_tensor matmul_contiguous(const t_tensor& a, const t_tensor& b) {
 
                     for (size_t k0 = 0; k0 < K; k0 += BK) {
                         const size_t k_end = std::min(k0 + BK, K);
-                        for (size_t i = i0; i < i_end; ++i) {
-                            for (size_t k = k0; k < k_end; ++k) {
+                        for (size_t i = i0; i < i_end; i++) {
+                            for (size_t k = k0; k < k_end; k++) {
                                 float val_a = batch_data_a[i * K + k];
                                 #pragma omp simd
-                                for (size_t j = j0; j < j_end; ++j) {
+                                for (size_t j = j0; j < j_end; j++) {
                                     local_c[i - i0][j - j0] += val_a * batch_data_b[k * N + j];
                                 }
                             }
                         }
                     }
 
-                    for (size_t i = i0; i < i_end; ++i) {
-                        for (size_t j = j0; j < j_end; ++j) {
+                    for (size_t i = i0; i < i_end; i++) {
+                        for (size_t j = j0; j < j_end; j++) {
                             batch_data_out[i * N + j] = local_c[i - i0][j - j0];
                         }
                     }
@@ -110,7 +110,7 @@ t_tensor matmul_generic(const t_tensor& a, const t_tensor& b) {
     // Helpers for multi-index traversal
     auto calculate_offset = [](const t_shape& index, const t_shape& strides) -> size_t {
         size_t offset = 0;
-        for (size_t i = 0; i < index.size(); ++i) {
+        for (size_t i = 0; i < index.size(); i++) {
             offset += index[i] * strides[i];
         }
         return offset;
@@ -118,7 +118,7 @@ t_tensor matmul_generic(const t_tensor& a, const t_tensor& b) {
 
     auto advance_index = [](t_shape& index, const t_shape& shape) -> bool {
         for (size_t i = shape.size(); i-- > 0;) {
-            if (++index[i] < shape[i]) return true;
+            if (index[i] < shape[i]) return true;
             index[i] = 0;
         }
         return false;
@@ -133,10 +133,10 @@ t_tensor matmul_generic(const t_tensor& a, const t_tensor& b) {
             size_t offset_a_base = calculate_offset(batch_index_a, strides_a);
             size_t offset_b_base = calculate_offset(batch_index_b, t_shape(strides_b.begin() + 2, strides_b.end()));
 
-            for (size_t i = 0; i < M; ++i) {
-                for (size_t j = 0; j < N; ++j) {
+            for (size_t i = 0; i < M; i++) {
+                for (size_t j = 0; j < N; j++) {
                     float acc = 0.0f;
-                    for (size_t k = 0; k < K; ++k) {
+                    for (size_t k = 0; k < K; k++) {
                         size_t index_a = offset_a_base + i * strides_a[ndim_a - 2] + k * strides_a[ndim_a - 1];
                         size_t index_b = k * strides_b[0] + j * strides_b[1] + offset_b_base;
                         acc += data_a[index_a] * data_b[index_b];

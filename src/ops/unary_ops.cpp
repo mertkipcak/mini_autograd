@@ -38,7 +38,7 @@ t_tensor unary_with_backward(const t_tensor& input, ForwardOp forward_op, Backwa
         const t_data& data_result = result_ptr->get_data();
 
         #pragma omp parallel for simd
-        for (size_t i = 0; i < grad_input.size(); ++i) {
+        for (size_t i = 0; i < grad_input.size(); i++) {
             grad_input[i] += backward_op(grad_output[i], data_input[i], data_result[i]);
         }
     };

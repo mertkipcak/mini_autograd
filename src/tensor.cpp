@@ -82,7 +82,7 @@ const float& Tensor::at(t_indices& indices) const {
 
 const float& Tensor::broadcasted_at(const t_indices& indices, const t_shape& broadcasted_shape) const {
     size_t flat_index = 0;
-    for(size_t i = 1; i <= shape.size(); i ++) {
+    for(size_t i = 1; i <= shape.size(); i++) {
         size_t bo = broadcasted_shape.size() - i; // broadcasted offset
         size_t o = shape.size() - i; // offset
         assert(broadcasted_shape[bo] == shape[o] || shape[o] == 1);
@@ -117,7 +117,7 @@ std::string Tensor::to_string() const {
 
     ss << "Tensor(";
     ss << "shape=";
-    for (size_t i = 0; i < shape.size(); ++i) {
+    for (size_t i = 0; i < shape.size(); i++) {
         ss << shape[i];
         if (i != shape.size() - 1) {
             ss << "x";
@@ -125,7 +125,7 @@ std::string Tensor::to_string() const {
     }
 
     ss << ", strides=[";
-    for (size_t i = 0; i < strides.size(); ++i) {
+    for (size_t i = 0; i < strides.size(); i++) {
         ss << strides[i];
         if (i != strides.size() - 1) {
             ss << ", ";
@@ -138,7 +138,7 @@ std::string Tensor::to_string() const {
 
     ss << ", data=[";
     size_t preview_size = std::min(data.size(), limit);
-    for (size_t i = 0; i < preview_size; ++i) {
+    for (size_t i = 0; i < preview_size; i++) {
         ss << data[i];
         if (i != preview_size - 1) {
             ss << ", ";
@@ -154,7 +154,7 @@ std::string Tensor::to_string() const {
     if (!requires_grad) return ss.str();
 
     ss << ", grad=[";
-    for (size_t i = 0; i < preview_size; ++i) {
+    for (size_t i = 0; i < preview_size; i++) {
         ss << grad[i];
         if (i != preview_size - 1) {
             ss << ", ";
@@ -195,8 +195,8 @@ t_tensor Tensor::transpose() const {
     size_t stride_out = new_strides[strides.size() - 2];
     
     size_t idx_in, idx_out;
-    for (size_t i = 0; i < shape[shape.size() - 2]; ++i) {
-        for (size_t j = 0; j < shape[shape.size() - 1]; ++j) {
+    for (size_t i = 0; i < shape[shape.size() - 2]; i++) {
+        for (size_t j = 0; j < shape[shape.size() - 1]; j++) {
             idx_in = i * stride_in + j;
             idx_out = j * stride_out + i;
             new_data[idx_out] = data[idx_in];

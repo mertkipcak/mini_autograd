@@ -30,20 +30,20 @@ void test_sum() {
     t_tensor A = create_tensor(t_data({1, 2, 3, 4}), t_shape({2, 2}));
     t_tensor S0 = sum(A, 0, false);
     t_tensor S1 = sum(A, 1, false);
-    t_tensor Sall = sum(A, -1, false);
+    t_tensor Sall = sumall(A);
     t_data expected0({4, 6});
     t_data expected1({3, 7});
     t_data expected_all({10});
-    // assert(expected0 == S0->get_data());
-    // assert(expected1 == S1->get_data());
-    // assert(expected_all == Sall->get_data());
+    assert(expected0 == S0->get_data());
+    assert(expected1 == S1->get_data());
+    assert(expected_all == Sall->get_data());
 }
 
 void test_exp() {
     t_tensor A = create_tensor(t_data({0, 1}), t_shape({2}));
     t_tensor B = exp(A);
     t_data expected({std::exp(0.0f), std::exp(1.0f)});
-    for (size_t i = 0; i < expected.size(); ++i)
+    for (size_t i = 0; i < expected.size(); i++)
         assert(std::abs(B->get_data()[i] - expected[i]) < 1e-5);
 }
 
@@ -51,7 +51,7 @@ void test_log() {
     t_tensor A = create_tensor(t_data({1, std::exp(1.0f)}), t_shape({2}));
     t_tensor B = log(A);
     t_data expected({0.0f, 1.0f});
-    for (size_t i = 0; i < expected.size(); ++i)
+    for (size_t i = 0; i < expected.size(); i++)
         assert(std::abs(B->get_data()[i] - expected[i]) < 1e-5);
 }
 

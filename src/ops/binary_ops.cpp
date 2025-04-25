@@ -22,7 +22,7 @@ t_tensor apply_binary_t(const t_tensor& a, const t_tensor& b, Op op) {
     // No broadcasting, both matrices contiguous, optimized path
     if (shape_a == shape_b && a->get_contiguous() && b->get_contiguous()) {
         #pragma omp parallel for simd
-        for (size_t i = 0; i < numel; ++i) {
+        for (size_t i = 0; i < numel; i++) {
             data_out[i] = op(data_a[i], data_b[i]);
         }
         return result;
@@ -44,7 +44,7 @@ t_tensor apply_binary_t(const t_tensor& a, const t_tensor& b, Op op) {
     std::vector<size_t> indices_b(numel);
     
     #pragma omp parallel for
-    for (size_t i = 0; i < numel; ++i) {
+    for (size_t i = 0; i < numel; i++) {
         size_t remaining = i;
         size_t flat_index_a = 0;
         size_t flat_index_b = 0;
@@ -61,7 +61,7 @@ t_tensor apply_binary_t(const t_tensor& a, const t_tensor& b, Op op) {
     }
     
     #pragma omp parallel for simd
-    for (size_t i = 0; i < numel; ++i) {
+    for (size_t i = 0; i < numel; i++) {
         data_out[i] = op(data_a[indices_a[i]], data_b[indices_b[i]]);
     }
     
@@ -110,7 +110,7 @@ t_tensor binary_with_backward(
         std::vector<size_t> indices_b(numel);
         
         #pragma omp parallel for
-        for (size_t i = 0; i < numel; ++i) {
+        for (size_t i = 0; i < numel; i++) {
             size_t remaining = i;
             size_t flat_index_a = 0;
             size_t flat_index_b = 0;
@@ -130,7 +130,7 @@ t_tensor binary_with_backward(
             t_data& grad_A = A_ptr->get_grad();
             
             #pragma omp parallel for
-            for (size_t i = 0; i < numel; ++i) {
+            for (size_t i = 0; i < numel; i++) {
                 float grad_a_val = backward_op_A(grad_output[i], data_A[indices_a[i]], data_B[indices_b[i]], data_result[i]);
                 
                 #pragma omp atomic
@@ -142,7 +142,7 @@ t_tensor binary_with_backward(
             t_data& grad_B = B_ptr->get_grad();
             
             #pragma omp parallel for
-            for (size_t i = 0; i < numel; ++i) {
+            for (size_t i = 0; i < numel; i++) {
                 float grad_b_val = backward_op_B(grad_output[i], data_A[indices_a[i]], data_B[indices_b[i]], data_result[i]);
                 
                 #pragma omp atomic
