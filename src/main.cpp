@@ -63,7 +63,7 @@ std::pair<t_data, t_data> generate_test_data(size_t n_test, size_t d,
 void polynomial_regression(std::function<float(float)> target_function, 
                             size_t n = 50, size_t d = 2,
                             float min_x = 0.0f, float max_x = 6.0f,
-                            float lr = 1e-2, float lambda_val = 1e-3, int epochs = 1000) {
+                            float lr = 1e-2, float lambda = 1e-3, int epochs = 1000) {
     // Generate training data
     t_data data_X, data_y;
     generate_polynomial_features(data_X, data_y, n, d, target_function, min_x, max_x);
@@ -73,13 +73,13 @@ void polynomial_regression(std::function<float(float)> target_function,
     
     // Initialize weights
     t_tensor w = randn(t_shape({d, 1}), true);
-    t_tensor lambda = create_tensor(t_data({lambda_val}), t_shape({}));
+
     
     // Training loop
     for (int epoch = 0; epoch < epochs; ++epoch) {
         t_tensor y_pred = matmul(X, w);
-        t_tensor accuracy = div(sumall(square(sub(y_pred, y))), create_tensor(t_data({static_cast<float>(n)}), t_shape({})));
-        t_tensor regularization = sumall(mul(lambda, square(w)));
+        t_tensor accuracy = sumall(square(y_pred - y)) / static_cast<float>(n);
+        t_tensor regularization = sumall(lambda * square(w));
         t_tensor loss = add(accuracy, regularization);
         loss->backward();
 

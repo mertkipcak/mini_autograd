@@ -1,6 +1,7 @@
 #include "ops.hpp"
 #include "utils.hpp"
 #include <omp.h>
+#include <cassert>
 
 t_tensor randn(const t_shape& shape, bool requires_grad) {
     std::random_device rd;
@@ -31,9 +32,9 @@ t_tensor sumall(const t_tensor& input) {
         return result;
     }
 
-    std::function<void()> backward_fn = [input_ptr = input, result_ptr = result]() mutable {
-        const t_data& grad_output = result_ptr->get_grad();
-        t_data& grad_input = input_ptr->get_grad();
+    std::function<void()> backward_fn = [input, result]() mutable {
+        const t_data& grad_output = result->get_grad();
+        t_data& grad_input = input->get_grad();
 
         #pragma omp parallel for
         for (size_t i = 0; i < grad_input.size(); i++) {
@@ -156,6 +157,115 @@ t_tensor sum(const t_tensor& input, size_t dim, bool keepdims) {
                     grad_input[input_idx] += grad_val;
                 }
             }
+        }
+    };
+
+    result->set_backward_fn(backward_fn);
+    result->add_creator(input);
+
+    return result;
+}
+
+t_tensor softmax(const t_tensor& input, float temperature) {
+    t_data data_out = t_data(input->get_data());
+    float* __restrict__ out = data_out.data();
+    float max_val = -std::numeric_limits<float>::infinity();
+
+    #pragma omp parallel for reduction(std::max:max_val)
+    for (size_t i = 0; i < data_out.size(); i++) {
+        max_val = std::max(max_val, out[i]);
+    }
+
+    #pragma omp parallel for simd
+    for (size_t i = 0; i < data_out.size(); i++) {
+        out[i] -= max_val;
+    }
+
+    #pragma omp parallel for simd
+    for (size_t i = 0; i < data_out.size(); i++) {
+        out[i] = std::exp(out[i] / temperature);
+    }
+
+    float total = 0;
+    #pragma omp parallel for reduction(+:total)
+    for (size_t i = 0; i < data_out.size(); i++) {
+        total += out[i];
+    }
+
+    #pragma omp parallel for simd
+    for (size_t i = 0; i < data_out.size(); i++) {
+        out[i] /= total;
+    }
+
+    t_tensor result = create_tensor(data_out, t_shape(input->get_shape()), input->get_requires_grad());
+
+    if (!result->get_requires_grad()) {
+        return result;
+    }
+
+    std::function<void()> backward_fn = [input, result]() mutable {
+        const t_data& data_output = result->get_data();
+        const t_data& grad_output = result->get_grad();
+        t_data& grad_input = input->get_grad();
+        #pragma omp parallel for
+        for (size_t i = 0; i < grad_input.size(); i++) {
+            float grad = grad_output[i] * (data_output[i] * (1.0 - data_output[i]));
+            grad_input[i] += grad;
+        }
+    };
+
+    result->set_backward_fn(backward_fn);
+    result->add_creator(input);
+
+    return result;
+}
+
+t_tensor cross_entropy(const t_tensor& input, size_t correct_index, float temperature) {
+    t_data probs = t_data(input->get_data());
+    float* __restrict__ out = probs.data();
+    float max_val = -std::numeric_limits<float>::infinity();
+
+    #pragma omp parallel for reduction(std::max:max_val)
+    for (size_t i = 0; i < probs.size(); i++) {
+        max_val = std::max(max_val, out[i]);
+    }
+
+    #pragma omp parallel for simd
+    for (size_t i = 0; i < probs.size(); i++) {
+        out[i] -= max_val;
+    }
+
+    #pragma omp parallel for simd
+    for (size_t i = 0; i < probs.size(); i++) {
+        out[i] = std::exp(out[i] / temperature);
+    }
+
+    float total = 0;
+    #pragma omp parallel for reduction(+:total)
+    for (size_t i = 0; i < probs.size(); i++) {
+        total += out[i];
+    }
+
+    #pragma omp parallel for simd
+    for (size_t i = 0; i < probs.size(); i++) {
+        out[i] /= total;
+    }
+
+    t_tensor result = create_tensor(t_data({-std::log(probs[correct_index])}), t_shape({}), input->get_requires_grad());
+
+    if (!result->get_requires_grad()) {
+        return result;
+    }
+
+    std::function<void()> backward_fn = [input, result, probs, correct_index]() mutable {
+        const t_data& grad_output = result->get_grad();
+        t_data& grad_input = input->get_grad();
+        #pragma omp parallel for
+        for (size_t i = 0; i < grad_input.size(); i++) {
+            if (i == correct_index)
+                grad_input[i] += grad_output[0] * (probs[i] - 1);
+            else
+                grad_input[i] += grad_output[0] * probs[i];
         }
     };
 

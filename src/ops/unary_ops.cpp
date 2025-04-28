@@ -82,3 +82,11 @@ t_tensor log(const t_tensor& input) {
         [](float grad_out, float x, float /*y*/) { return grad_out / x; }
     );
 }
+
+t_tensor relu(const t_tensor& input) {
+    return unary_with_backward(
+        input,
+        [](float x) { return std::max(0.0f, x); },
+        [](float grad_out, float x, float /*y*/) { return x > 0 ? grad_out : 0; }
+    );
+}

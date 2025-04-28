@@ -15,6 +15,7 @@
  */
 t_tensor apply_binary(const t_tensor& a, const t_tensor& b, std::function<float(float, float)> op);
 
+/*ADD****************************************************************************************************************/
 /**
  * @brief Create a new tensor that is the element-wise sum of two tensors
  * @param a First tensor
@@ -23,6 +24,20 @@ t_tensor apply_binary(const t_tensor& a, const t_tensor& b, std::function<float(
  */
 t_tensor add(const t_tensor& a, const t_tensor& b);
 
+inline t_tensor operator+(const t_tensor& a, const t_tensor& b) {
+    return add(a, b);
+}
+
+inline t_tensor operator+(const t_tensor& a, float b) {
+    return add(a, create_tensor(t_data({b}), t_shape({})));
+}
+
+inline t_tensor operator+(float a, const t_tensor& b) {
+    return add(create_tensor(t_data({a}), t_shape({})), b);
+}
+/********************************************************************************************************************/
+
+/*SUB****************************************************************************************************************/
 /**
  * @brief Create a new tensor that is the element-wise sub of two tensors
  * @param a First tensor
@@ -31,6 +46,20 @@ t_tensor add(const t_tensor& a, const t_tensor& b);
  */
 t_tensor sub(const t_tensor& a, const t_tensor& b);
 
+inline t_tensor operator-(const t_tensor& a, const t_tensor& b) {
+    return sub(a, b);
+}
+
+inline t_tensor operator-(const t_tensor& a, float b) {
+    return sub(a, create_tensor(t_data({b}), t_shape({})));
+}
+
+inline t_tensor operator-(float a, const t_tensor& b) {
+    return sub(create_tensor(t_data({a}), t_shape({})), b);
+}
+/********************************************************************************************************************/
+
+/*MUL****************************************************************************************************************/
 /**
  * @brief Create a new tensor that is the element-wise product of two tensors
  * @param a First tensor
@@ -39,6 +68,21 @@ t_tensor sub(const t_tensor& a, const t_tensor& b);
  */
 t_tensor mul(const t_tensor& a, const t_tensor& b);
 
+inline t_tensor operator*(const t_tensor& a, const t_tensor& b) {
+    return mul(a, b);
+}
+
+inline t_tensor operator*(const t_tensor& a, float b) {
+    return mul(a, create_tensor(t_data({b}), t_shape({})));
+}
+
+inline t_tensor operator*(float a, const t_tensor& b) {
+    return mul(create_tensor(t_data({a}), t_shape({})), b);
+}
+
+/********************************************************************************************************************/
+
+/*DIV****************************************************************************************************************/
 /**
  * @brief Create a new tensor that is the element-wise division of two tensors
  * @param a First tensor
@@ -46,6 +90,20 @@ t_tensor mul(const t_tensor& a, const t_tensor& b);
  * @return New tensor containing the result
  */
 t_tensor div(const t_tensor& a, const t_tensor& b);
+
+inline t_tensor operator/(const t_tensor& a, const t_tensor& b) {
+    return div(a, b);
+}
+
+inline t_tensor operator/(const t_tensor& a, float b) {
+    return div(a, create_tensor(t_data({b}), t_shape({})));
+}
+
+inline t_tensor operator/(float a, const t_tensor& b) {
+    return div(create_tensor(t_data({a}), t_shape({})), b);
+}
+
+/********************************************************************************************************************/
 
 /**
  * @brief Create a new tensor from the tensor multiplication of two tensors
@@ -72,6 +130,16 @@ t_tensor sum(const t_tensor& input, size_t dim, bool keepdims = false);
  * @brief sum all the elements of the tensor
  */
 t_tensor sumall(const t_tensor& input);
+
+/**
+ * @brief Converts the tensor into probabilities
+ */
+t_tensor softmax(const t_tensor& input, float temperature = 1);
+
+/**
+ * @brief Gets the cross entropy los from the tensor
+ */
+t_tensor cross_entropy(const t_tensor& input, size_t correct_index, float temperature = 1);
 
 /**
  * @brief Apply an operation element-wise to a tensor
@@ -108,3 +176,10 @@ t_tensor log(const t_tensor& input);
  * @return New squared tensor
  */
 t_tensor square(const t_tensor& input);
+
+/**
+ * @brief relu element-wise a tensor
+ * @param input Input tensor
+ * @return New relu tensor
+ */
+t_tensor relu(const t_tensor& input);

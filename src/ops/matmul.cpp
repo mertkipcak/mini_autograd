@@ -19,7 +19,6 @@ t_tensor matmul(const t_tensor& a, const t_tensor& b) {
     // Get dimensions for standard matrix multiplication:
     // A[..., M, K] @ B[K, N, ...] -> C[..., M, N, ...]
     const size_t ndim_a = shape_a.size();
-    const size_t ndim_b = shape_b.size();
     const size_t M = shape_a[ndim_a - 2];  // Second-last dimension of A
     const size_t K = shape_a[ndim_a - 1];  // Last dimension of A (must match first of B)
     const size_t N = shape_b[1];           // Second dimension of B
