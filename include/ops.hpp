@@ -24,12 +24,28 @@ t_tensor apply_binary(const t_tensor& a, const t_tensor& b, std::function<float(
 t_tensor add(const t_tensor& a, const t_tensor& b);
 
 /**
+ * @brief Create a new tensor that is the element-wise sub of two tensors
+ * @param a First tensor
+ * @param b Second tensor
+ * @return New tensor containing the result with elements a - b
+ */
+t_tensor sub(const t_tensor& a, const t_tensor& b);
+
+/**
  * @brief Create a new tensor that is the element-wise product of two tensors
  * @param a First tensor
  * @param b Second tensor
  * @return New tensor containing the result
  */
 t_tensor mul(const t_tensor& a, const t_tensor& b);
+
+/**
+ * @brief Create a new tensor that is the element-wise division of two tensors
+ * @param a First tensor
+ * @param b Second tensor
+ * @return New tensor containing the result
+ */
+t_tensor div(const t_tensor& a, const t_tensor& b);
 
 /**
  * @brief Create a new tensor from the tensor multiplication of two tensors
@@ -85,3 +101,10 @@ t_tensor exp(const t_tensor& input);
  * @return New tensor with log applied
  */
 t_tensor log(const t_tensor& input);
+
+/**
+ * @brief square element-wise a tensor
+ * @param input Input tensor
+ * @return New squared tensor
+ */
+t_tensor square(const t_tensor& input);

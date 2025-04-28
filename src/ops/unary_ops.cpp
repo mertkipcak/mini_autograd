@@ -67,6 +67,14 @@ t_tensor exp(const t_tensor& input) {
     );
 }
 
+t_tensor square(const t_tensor& input) {
+    return unary_with_backward(
+        input,
+        [](float x) { return x * x; },
+        [](float grad_out, float x, float /*y*/) { return grad_out * 2 * x; }
+    );
+}
+
 t_tensor log(const t_tensor& input) {
     return unary_with_backward(
         input,

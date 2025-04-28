@@ -19,11 +19,39 @@ void test_mul() {
 }
 
 void test_matmul() {
-    t_tensor A = create_tensor(t_data({1, 2, 3, 4}), t_shape({2, 2}));
-    t_tensor B = create_tensor(t_data({5, 6, 7, 8}), t_shape({2, 2}));
+    t_tensor A = create_tensor(t_data({
+        1, 2, 3, 4,
+        5, 6, 7, 8,
+        9, 10, 11, 12,
+    
+        13, 14, 15, 16,
+        17, 18, 19, 20,
+        21, 22, 23, 24
+    }), t_shape({2, 3, 4}));
+    
+    // Create input B of shape [4, 5]
+    t_tensor B = create_tensor(t_data({
+        1, 2, 3, 4, 5,
+        6, 7, 8, 9, 10,
+        11, 12, 13, 14, 15,
+        16, 17, 18, 19, 20
+    }), t_shape({4, 5}));
+    
+    // Run matmul: A [2,3,4] @ B [4,5] -> [2,3,5]
     t_tensor C = matmul(A, B);
-    t_data expected({19, 22, 43, 50});
-    assert(expected == C->get_data());
+    
+    // Expected result: manually computed or verified via NumPy
+    t_data expected({
+        110, 120, 130, 140, 150,
+        246, 272, 298, 324, 350,
+        382, 424, 466, 508, 550,
+    
+        518, 576, 634, 692, 750,
+        654, 728, 802, 876, 950,
+        790, 880, 970, 1060, 1150
+    });
+    assert(C->get_shape() == t_shape({2, 3, 5}));
+    assert(C->get_data() == expected);
 }
 
 void test_sum() {
