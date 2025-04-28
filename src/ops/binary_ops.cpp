@@ -180,6 +180,16 @@ t_tensor add(const t_tensor& a, const t_tensor& b) {
     );
 }
 
+t_tensor sub(const t_tensor& a, const t_tensor& b) {
+    return binary_with_backward(
+        a,
+        b,
+        [](float a, float b) { return a - b; },
+        [](float grad_out, float /*a*/, float /*b*/, float /*out*/) { return grad_out; },
+        [](float grad_out, float /*a*/, float /*b*/, float /*out*/) { return -grad_out; }
+    );
+}
+
 t_tensor mul(const t_tensor& a, const t_tensor& b) {
     return binary_with_backward(
         a,
@@ -187,5 +197,15 @@ t_tensor mul(const t_tensor& a, const t_tensor& b) {
         [](float a, float b) { return a * b; },
         [](float grad_out, float /*a*/, float b, float /*out*/) { return grad_out * b; },
         [](float grad_out, float a, float /*b*/, float /*out*/) { return grad_out * a; }
+    );
+}
+
+t_tensor div(const t_tensor& a, const t_tensor& b) {
+    return binary_with_backward(
+        a,
+        b,
+        [](float a, float b) { return a / b; },
+        [](float grad_out, float /*a*/, float b, float /*out*/) { return grad_out / b; },
+        [](float grad_out, float a, float b, float /*out*/) { return grad_out * -a / (b * b); }
     );
 }

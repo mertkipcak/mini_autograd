@@ -3,170 +3,297 @@
 #include <numeric>
 #include <omp.h>
 
-t_tensor matmul_contiguous(const t_tensor& a, const t_tensor& b) {
+t_tensor matmul(const t_tensor& a, const t_tensor& b) {
+    // Validate inputs
     const t_shape& shape_a = a->get_shape();
     const t_shape& shape_b = b->get_shape();
-    const t_data& data_a = a->get_data();
-    const t_data& data_b = b->get_data();
-
-    const size_t ndim_a = shape_a.size();
-    const size_t M = shape_a[ndim_a - 2];
-    const size_t K = shape_a[ndim_a - 1];
-    const size_t N = shape_b[1];
-
-    const size_t batch_size_a = std::accumulate(shape_a.begin(), shape_a.end() - 2, 1, std::multiplies<>());
-    const size_t batch_size_b = std::accumulate(shape_b.begin() + 2, shape_b.end(), 1, std::multiplies<>());
-
-    // Output shape: [batch_a->.., M, N, batch_b->..]
-    t_shape out_shape;
-    out_shape.insert(out_shape.end(), shape_a.begin(), shape_a.end() - 2);
-    out_shape.push_back(M);
-    out_shape.push_back(N);
-    out_shape.insert(out_shape.end(), shape_b.begin() + 2, shape_b.end());
-
-    const size_t total_batches = batch_size_a * batch_size_b;
-    const size_t result_stride = M * N;
-
-    t_data result_data(total_batches * result_stride, 0.0f);
-
-    // Block sizes — tuned for L1 cache
-    constexpr size_t BM = 64;
-    constexpr size_t BN = 64;
-    constexpr size_t BK = 64;
-
-    #pragma omp parallel for collapse(2)
-    for (size_t batch_a = 0; batch_a < batch_size_a; batch_a++) {
-        for (size_t batch_b = 0; batch_b < batch_size_b; batch_b++) {
-            const float* __restrict__ batch_data_a = data_a.data() + batch_a * M * K;
-            const float* __restrict__ batch_data_b = data_b.data() + batch_b * K * N;
-            float* __restrict__ batch_data_out = result_data.data() + (batch_a * batch_size_b + batch_b) * M * N;
-
-            for (size_t i0 = 0; i0 < M; i0 += BM) {
-                for (size_t j0 = 0; j0 < N; j0 += BN) {
-                    float local_c[BM][BN] = {{0}};
-
-                    const size_t i_end = std::min(i0 + BM, M);
-                    const size_t j_end = std::min(j0 + BN, N);
-
-                    for (size_t k0 = 0; k0 < K; k0 += BK) {
-                        const size_t k_end = std::min(k0 + BK, K);
-                        for (size_t i = i0; i < i_end; i++) {
-                            for (size_t k = k0; k < k_end; k++) {
-                                float val_a = batch_data_a[i * K + k];
-                                #pragma omp simd
-                                for (size_t j = j0; j < j_end; j++) {
-                                    local_c[i - i0][j - j0] += val_a * batch_data_b[k * N + j];
-                                }
-                            }
-                        }
-                    }
-
-                    for (size_t i = i0; i < i_end; i++) {
-                        for (size_t j = j0; j < j_end; j++) {
-                            batch_data_out[i * N + j] = local_c[i - i0][j - j0];
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    return create_tensor(result_data, out_shape);
-}
-
-t_tensor matmul_generic(const t_tensor& a, const t_tensor& b) {
-    const t_shape& shape_a = a->get_shape();
     const t_shape& strides_a = a->get_strides();
-    const t_shape& shape_b = b->get_shape();
     const t_shape& strides_b = b->get_strides();
     const t_data& data_a = a->get_data();
     const t_data& data_b = b->get_data();
-
+    
+    // Ensure valid shapes for matmul
+    assert(!shape_a.empty() && !shape_b.empty());
+    assert(shape_a.back() == shape_b.front());
+    
+    // Get dimensions for standard matrix multiplication:
+    // A[..., M, K] @ B[K, N, ...] -> C[..., M, N, ...]
     const size_t ndim_a = shape_a.size();
-    const size_t M = shape_a[ndim_a - 2];
-    const size_t K = shape_a[ndim_a - 1];
-    const size_t N = shape_b[1];
-
+    const size_t ndim_b = shape_b.size();
+    const size_t M = shape_a[ndim_a - 2];  // Second-last dimension of A
+    const size_t K = shape_a[ndim_a - 1];  // Last dimension of A (must match first of B)
+    const size_t N = shape_b[1];           // Second dimension of B
+    
+    // Extract batch dimensions
     t_shape batch_shape_a(shape_a.begin(), shape_a.end() - 2);
     t_shape batch_shape_b(shape_b.begin() + 2, shape_b.end());
-
-    // Output shape = [batch_a->.., M, N, batch_b->..]
+    
+    // Calculate batch sizes
+    const size_t batch_size_a = std::accumulate(batch_shape_a.begin(), batch_shape_a.end(), 
+                                               1, std::multiplies<>());
+    const size_t batch_size_b = std::accumulate(batch_shape_b.begin(), batch_shape_b.end(), 
+                                               1, std::multiplies<>());
+    
+    // Construct output shape: [batch_a..., M, N, batch_b...]
     t_shape out_shape;
     out_shape.insert(out_shape.end(), batch_shape_a.begin(), batch_shape_a.end());
     out_shape.push_back(M);
     out_shape.push_back(N);
     out_shape.insert(out_shape.end(), batch_shape_b.begin(), batch_shape_b.end());
-
+    
     // Compute row-major strides for output
     t_shape out_strides(out_shape.size());
     size_t stride = 1;
-    for (size_t i = out_shape.size(); i-- > 0;) {
+    for (int i = out_shape.size() - 1; i >= 0; i--) {
         out_strides[i] = stride;
         stride *= out_shape[i];
     }
-
-    t_data out_data(stride, 0.0f); // Preallocate
-
-    // Helpers for multi-index traversal
-    auto calculate_offset = [](const t_shape& index, const t_shape& strides) -> size_t {
-        size_t offset = 0;
-        for (size_t i = 0; i < index.size(); i++) {
-            offset += index[i] * strides[i];
-        }
-        return offset;
-    };
-
-    auto advance_index = [](t_shape& index, const t_shape& shape) -> bool {
-        for (size_t i = shape.size(); i-- > 0;) {
-            if (index[i] < shape[i]) return true;
-            index[i] = 0;
-        }
-        return false;
-    };
-
-    // Iterate batch_a x batch_b index combinations
-    t_shape batch_index_a(batch_shape_a.size(), 0);
-    t_shape batch_index_b(batch_shape_b.size(), 0);
-
-    do {
-        do {
-            size_t offset_a_base = calculate_offset(batch_index_a, strides_a);
-            size_t offset_b_base = calculate_offset(batch_index_b, t_shape(strides_b.begin() + 2, strides_b.end()));
-
+    
+    // Calculate total output size
+    const size_t total_elements = std::accumulate(out_shape.begin(), out_shape.end(), 
+                                                 1, std::multiplies<>());
+    
+    // Preallocate output data
+    t_data out_data(total_elements, 0.0f);
+    
+    // Perform the matrix multiplication
+    #pragma omp parallel for collapse(2)
+    for (size_t batch_idx_a = 0; batch_idx_a < batch_size_a; batch_idx_a++) {
+        for (size_t batch_idx_b = 0; batch_idx_b < batch_size_b; batch_idx_b++) {
+            // Convert flat batch indices to multi-dimensional indices
+            t_shape batch_indices_a(batch_shape_a.size());
+            size_t remaining_a = batch_idx_a;
+            for (int i = batch_shape_a.size() - 1; i >= 0; i--) {
+                batch_indices_a[i] = remaining_a % batch_shape_a[i];
+                remaining_a /= batch_shape_a[i];
+            }
+            
+            t_shape batch_indices_b(batch_shape_b.size());
+            size_t remaining_b = batch_idx_b;
+            for (int i = batch_shape_b.size() - 1; i >= 0; i--) {
+                batch_indices_b[i] = remaining_b % batch_shape_b[i];
+                remaining_b /= batch_shape_b[i];
+            }
+            
+            // Calculate base offsets for these batch indices
+            size_t offset_a_base = 0;
+            for (size_t i = 0; i < batch_indices_a.size(); i++) {
+                offset_a_base += batch_indices_a[i] * strides_a[i];
+            }
+            
+            size_t offset_b_base = 0;
+            for (size_t i = 0; i < batch_indices_b.size(); i++) {
+                offset_b_base += batch_indices_b[i] * strides_b[i + 2];
+            }
+            
+            // Calculate base output offset
+            size_t out_offset_base = 0;
+            for (size_t i = 0; i < batch_indices_a.size(); i++) {
+                out_offset_base += batch_indices_a[i] * out_strides[i];
+            }
+            
+            size_t matrix_idx_offset = batch_shape_a.size();
+            size_t batch_b_offset = matrix_idx_offset + 2;
+            for (size_t i = 0; i < batch_indices_b.size(); i++) {
+                out_offset_base += batch_indices_b[i] * out_strides[batch_b_offset + i];
+            }
+            
+            // Matrix multiplication for this batch combination
             for (size_t i = 0; i < M; i++) {
                 for (size_t j = 0; j < N; j++) {
                     float acc = 0.0f;
+                    // Dot product along K dimension
                     for (size_t k = 0; k < K; k++) {
                         size_t index_a = offset_a_base + i * strides_a[ndim_a - 2] + k * strides_a[ndim_a - 1];
                         size_t index_b = k * strides_b[0] + j * strides_b[1] + offset_b_base;
                         acc += data_a[index_a] * data_b[index_b];
                     }
-
-                    t_shape out_index;
-                    out_index.insert(out_index.end(), batch_index_a.begin(), batch_index_a.end());
-                    out_index.push_back(i);
-                    out_index.push_back(j);
-                    out_index.insert(out_index.end(), batch_index_b.begin(), batch_index_b.end());
-                    size_t out_offset = calculate_offset(out_index, out_strides);
-                    out_data[out_offset] = acc;
+                    
+                    // Store result
+                    size_t out_idx = out_offset_base + i * out_strides[matrix_idx_offset] + 
+                                    j * out_strides[matrix_idx_offset + 1];
+                    out_data[out_idx] = acc;
                 }
             }
-
-        } while (advance_index(batch_index_b, batch_shape_b));
-    } while (advance_index(batch_index_a, batch_shape_a));
-
-    return create_tensor(out_data, out_shape, out_strides);
-}
-
-t_tensor matmul(const t_tensor& a, const t_tensor& b) {
-    // Assertions
-    assert(!a->get_shape().empty() && !b->get_shape().empty());
-    assert(a->get_shape().back() == b->get_shape().front());
-
-    // Matmul
-    if (a->get_contiguous() && b->get_contiguous()) {
-        return matmul_contiguous(a, b);
-    } else {
-        return matmul_generic(a, b);
+        }
     }
+    
+    // Create result tensor
+    t_tensor result = create_tensor(out_data, out_shape, 
+                                   a->get_requires_grad() || b->get_requires_grad());
+    
+    // Add backward function if needed
+    if (a->get_requires_grad() || b->get_requires_grad()) {
+        std::function<void()> backward_fn = [
+            a_weak = std::weak_ptr<Tensor>(a),
+            b_weak = std::weak_ptr<Tensor>(b),
+            result_weak = std::weak_ptr<Tensor>(result),
+            shape_a, strides_a, ndim_a,
+            shape_b, strides_b,
+            out_shape, out_strides,
+            batch_shape_a, batch_shape_b,
+            M, N, K
+        ]() {
+            auto a_ptr = a_weak.lock();
+            auto b_ptr = b_weak.lock();
+            auto result_ptr = result_weak.lock();
+            if (!a_ptr || !b_ptr || !result_ptr) return;
+            
+            const t_data& grad_output = result_ptr->get_grad();
+            
+            // Calculate batch sizes
+            size_t batch_size_a = std::accumulate(batch_shape_a.begin(), batch_shape_a.end(), 
+                                                 1, std::multiplies<>());
+            size_t batch_size_b = std::accumulate(batch_shape_b.begin(), batch_shape_b.end(), 
+                                                 1, std::multiplies<>());
+            
+            // Backprop to A if needed
+            if (a_ptr->get_requires_grad()) {
+                t_data& grad_a = a_ptr->get_grad();
+                
+                #pragma omp parallel for collapse(2)
+                for (size_t batch_idx_a = 0; batch_idx_a < batch_size_a; batch_idx_a++) {
+                    for (size_t batch_idx_b = 0; batch_idx_b < batch_size_b; batch_idx_b++) {
+                        // Convert flat batch indices to multi-dimensional indices
+                        t_shape batch_indices_a(batch_shape_a.size());
+                        size_t remaining_a = batch_idx_a;
+                        for (int i = batch_shape_a.size() - 1; i >= 0; i--) {
+                            batch_indices_a[i] = remaining_a % batch_shape_a[i];
+                            remaining_a /= batch_shape_a[i];
+                        }
+                        
+                        t_shape batch_indices_b(batch_shape_b.size());
+                        size_t remaining_b = batch_idx_b;
+                        for (int i = batch_shape_b.size() - 1; i >= 0; i--) {
+                            batch_indices_b[i] = remaining_b % batch_shape_b[i];
+                            remaining_b /= batch_shape_b[i];
+                        }
+                        
+                        // Calculate base offsets
+                        size_t offset_a_base = 0;
+                        for (size_t i = 0; i < batch_indices_a.size(); i++) {
+                            offset_a_base += batch_indices_a[i] * strides_a[i];
+                        }
+                        
+                        size_t offset_b_base = 0;
+                        for (size_t i = 0; i < batch_indices_b.size(); i++) {
+                            offset_b_base += batch_indices_b[i] * strides_b[i + 2];
+                        }
+                        
+                        // Calculate base output offset
+                        size_t out_offset_base = 0;
+                        for (size_t i = 0; i < batch_indices_a.size(); i++) {
+                            out_offset_base += batch_indices_a[i] * out_strides[i];
+                        }
+                        
+                        size_t matrix_idx_offset = batch_shape_a.size();
+                        size_t batch_b_offset = matrix_idx_offset + 2;
+                        for (size_t i = 0; i < batch_indices_b.size(); i++) {
+                            out_offset_base += batch_indices_b[i] * out_strides[batch_b_offset + i];
+                        }
+                        
+                        // For each element in A, compute its gradient
+                        // dA[i,k] = sum_j(dC[i,j] * B[k,j])
+                        for (size_t i = 0; i < M; i++) {
+                            for (size_t k = 0; k < K; k++) {
+                                float grad_sum = 0.0f;
+                                // Sum over N dimension
+                                for (size_t j = 0; j < N; j++) {
+                                    size_t out_idx = out_offset_base + i * out_strides[matrix_idx_offset] + 
+                                                    j * out_strides[matrix_idx_offset + 1];
+                                    size_t b_idx = k * strides_b[0] + j * strides_b[1] + offset_b_base;
+                                    
+                                    grad_sum += grad_output[out_idx] * b_ptr->get_data()[b_idx];
+                                }
+                                
+                                // Update gradient for A
+                                size_t a_idx = offset_a_base + i * strides_a[ndim_a - 2] + k * strides_a[ndim_a - 1];
+                                #pragma omp atomic
+                                grad_a[a_idx] += grad_sum;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Backprop to B if needed
+            if (b_ptr->get_requires_grad()) {
+                t_data& grad_b = b_ptr->get_grad();
+                
+                #pragma omp parallel for collapse(2)
+                for (size_t batch_idx_a = 0; batch_idx_a < batch_size_a; batch_idx_a++) {
+                    for (size_t batch_idx_b = 0; batch_idx_b < batch_size_b; batch_idx_b++) {
+                        // Convert flat batch indices to multi-dimensional indices
+                        t_shape batch_indices_a(batch_shape_a.size());
+                        size_t remaining_a = batch_idx_a;
+                        for (int i = batch_shape_a.size() - 1; i >= 0; i--) {
+                            batch_indices_a[i] = remaining_a % batch_shape_a[i];
+                            remaining_a /= batch_shape_a[i];
+                        }
+                        
+                        t_shape batch_indices_b(batch_shape_b.size());
+                        size_t remaining_b = batch_idx_b;
+                        for (int i = batch_shape_b.size() - 1; i >= 0; i--) {
+                            batch_indices_b[i] = remaining_b % batch_shape_b[i];
+                            remaining_b /= batch_shape_b[i];
+                        }
+                        
+                        // Calculate base offsets
+                        size_t offset_a_base = 0;
+                        for (size_t i = 0; i < batch_indices_a.size(); i++) {
+                            offset_a_base += batch_indices_a[i] * strides_a[i];
+                        }
+                        
+                        size_t offset_b_base = 0;
+                        for (size_t i = 0; i < batch_indices_b.size(); i++) {
+                            offset_b_base += batch_indices_b[i] * strides_b[i + 2];
+                        }
+                        
+                        // Calculate base output offset
+                        size_t out_offset_base = 0;
+                        for (size_t i = 0; i < batch_indices_a.size(); i++) {
+                            out_offset_base += batch_indices_a[i] * out_strides[i];
+                        }
+                        
+                        size_t matrix_idx_offset = batch_shape_a.size();
+                        size_t batch_b_offset = matrix_idx_offset + 2;
+                        for (size_t i = 0; i < batch_indices_b.size(); i++) {
+                            out_offset_base += batch_indices_b[i] * out_strides[batch_b_offset + i];
+                        }
+                        
+                        // For each element in B, compute its gradient
+                        // dB[k,j] = sum_i(A[i,k] * dC[i,j])
+                        for (size_t k = 0; k < K; k++) {
+                            for (size_t j = 0; j < N; j++) {
+                                float grad_sum = 0.0f;
+                                // Sum over M dimension
+                                for (size_t i = 0; i < M; i++) {
+                                    size_t out_idx = out_offset_base + i * out_strides[matrix_idx_offset] + 
+                                                    j * out_strides[matrix_idx_offset + 1];
+                                    size_t a_idx = offset_a_base + i * strides_a[ndim_a - 2] + k * strides_a[ndim_a - 1];
+                                    
+                                    grad_sum += grad_output[out_idx] * a_ptr->get_data()[a_idx];
+                                }
+                                
+                                // Update gradient for B
+                                size_t b_idx = k * strides_b[0] + j * strides_b[1] + offset_b_base;
+                                #pragma omp atomic
+                                grad_b[b_idx] += grad_sum;
+                            }
+                        }
+                    }
+                }
+            }
+        };
+        
+        result->set_backward_fn(backward_fn);
+        if (a->get_requires_grad()) {
+            result->add_creator(a);
+        }
+        if (b->get_requires_grad()) {
+            result->add_creator(b);
+        }
+    }
+    
+    return result;
 }
