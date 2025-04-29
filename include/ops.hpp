@@ -183,3 +183,10 @@ t_tensor square(const t_tensor& input);
  * @return New relu tensor
  */
 t_tensor relu(const t_tensor& input);
+
+/**
+ * @brief mean of all the elements
+ * @param input Input tensor
+ * @return Tensor with mean value
+ */
+t_tensor mean(const t_tensor& input);

@@ -3,7 +3,7 @@ CXXFLAGS = -std=c++20 -O2 -Wall -Wextra -Wpedantic -Iinclude
 
 SRC_DIR = src
 
-SRC_FILES := $(wildcard $(SRC_DIR)/*.cpp) $(wildcard $(SRC_DIR)/ops/*.cpp)
+SRC_FILES := $(wildcard $(SRC_DIR)/*.cpp) $(wildcard $(SRC_DIR)/ops/*.cpp $(SRC_DIR)/modules/*.cpp)
 
 MAIN_EXE := main
 

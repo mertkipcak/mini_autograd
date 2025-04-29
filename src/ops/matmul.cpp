@@ -14,18 +14,30 @@ t_tensor matmul(const t_tensor& a, const t_tensor& b) {
     
     // Ensure valid shapes for matmul
     assert(!shape_a.empty() && !shape_b.empty());
-    assert(shape_a.back() == shape_b.front());
     
-    // Get dimensions for standard matrix multiplication:
-    // A[..., M, K] @ B[K, N, ...] -> C[..., M, N, ...]
+    // Handle 1D vector case for B
+    bool b_is_1d = shape_b.size() == 1;
+    
+    // For 1D vector, we treat it as a column vector with shape [K, 1]
+    // For matrix multiplication: A[..., M, K] @ B[K] -> C[..., M]
+    if (b_is_1d) {
+        assert(shape_a.back() == shape_b[0]); // Last dim of A must match only dim of B
+    } else {
+        assert(shape_a.back() == shape_b.front()); // Last dim of A must match first dim of B
+    }
+    
+    // Get dimensions for matrix multiplication
     const size_t ndim_a = shape_a.size();
     const size_t M = shape_a[ndim_a - 2];  // Second-last dimension of A
-    const size_t K = shape_a[ndim_a - 1];  // Last dimension of A (must match first of B)
-    const size_t N = shape_b[1];           // Second dimension of B
+    const size_t K = shape_a[ndim_a - 1];  // Last dimension of A
+    const size_t N = b_is_1d ? 1 : shape_b[1];  // For 1D vector, N=1
     
     // Extract batch dimensions
     t_shape batch_shape_a(shape_a.begin(), shape_a.end() - 2);
-    t_shape batch_shape_b(shape_b.begin() + 2, shape_b.end());
+    t_shape batch_shape_b;
+    if (!b_is_1d) {
+        batch_shape_b.insert(batch_shape_b.end(), shape_b.begin() + 2, shape_b.end());
+    }
     
     // Calculate batch sizes
     const size_t batch_size_a = std::accumulate(batch_shape_a.begin(), batch_shape_a.end(), 
@@ -33,12 +45,19 @@ t_tensor matmul(const t_tensor& a, const t_tensor& b) {
     const size_t batch_size_b = std::accumulate(batch_shape_b.begin(), batch_shape_b.end(), 
                                                1, std::multiplies<>());
     
-    // Construct output shape: [batch_a..., M, N, batch_b...]
+    // Construct output shape
     t_shape out_shape;
     out_shape.insert(out_shape.end(), batch_shape_a.begin(), batch_shape_a.end());
-    out_shape.push_back(M);
-    out_shape.push_back(N);
-    out_shape.insert(out_shape.end(), batch_shape_b.begin(), batch_shape_b.end());
+    
+    if (b_is_1d) {
+        // For 1D vectors, output is [batch_a..., M]
+        out_shape.push_back(M);
+    } else {
+        // For 2D+ matrices, output is [batch_a..., M, N, batch_b...]
+        out_shape.push_back(M);
+        out_shape.push_back(N);
+        out_shape.insert(out_shape.end(), batch_shape_b.begin(), batch_shape_b.end());
+    }
     
     // Compute row-major strides for output
     t_shape out_strides(out_shape.size());
@@ -81,8 +100,10 @@ t_tensor matmul(const t_tensor& a, const t_tensor& b) {
             }
             
             size_t offset_b_base = 0;
-            for (size_t i = 0; i < batch_indices_b.size(); i++) {
-                offset_b_base += batch_indices_b[i] * strides_b[i + 2];
+            if (!b_is_1d) {
+                for (size_t i = 0; i < batch_indices_b.size(); i++) {
+                    offset_b_base += batch_indices_b[i] * strides_b[i + 2];
+                }
             }
             
             // Calculate base output offset
@@ -92,9 +113,11 @@ t_tensor matmul(const t_tensor& a, const t_tensor& b) {
             }
             
             size_t matrix_idx_offset = batch_shape_a.size();
-            size_t batch_b_offset = matrix_idx_offset + 2;
-            for (size_t i = 0; i < batch_indices_b.size(); i++) {
-                out_offset_base += batch_indices_b[i] * out_strides[batch_b_offset + i];
+            if (!b_is_1d) {
+                size_t batch_b_offset = matrix_idx_offset + 2;
+                for (size_t i = 0; i < batch_indices_b.size(); i++) {
+                    out_offset_base += batch_indices_b[i] * out_strides[batch_b_offset + i];
+                }
             }
             
             // Matrix multiplication for this batch combination
@@ -104,13 +127,23 @@ t_tensor matmul(const t_tensor& a, const t_tensor& b) {
                     // Dot product along K dimension
                     for (size_t k = 0; k < K; k++) {
                         size_t index_a = offset_a_base + i * strides_a[ndim_a - 2] + k * strides_a[ndim_a - 1];
-                        size_t index_b = k * strides_b[0] + j * strides_b[1] + offset_b_base;
+                        size_t index_b;
+                        if (b_is_1d) {
+                            index_b = k * strides_b[0];  // B is a 1D vector
+                        } else {
+                            index_b = k * strides_b[0] + j * strides_b[1] + offset_b_base;
+                        }
                         acc += data_a[index_a] * data_b[index_b];
                     }
                     
                     // Store result
-                    size_t out_idx = out_offset_base + i * out_strides[matrix_idx_offset] + 
-                                    j * out_strides[matrix_idx_offset + 1];
+                    size_t out_idx;
+                    if (b_is_1d) {
+                        out_idx = out_offset_base + i * out_strides[matrix_idx_offset];
+                    } else {
+                        out_idx = out_offset_base + i * out_strides[matrix_idx_offset] + 
+                                j * out_strides[matrix_idx_offset + 1];
+                    }
                     out_data[out_idx] = acc;
                 }
             }
@@ -131,7 +164,7 @@ t_tensor matmul(const t_tensor& a, const t_tensor& b) {
             shape_b, strides_b,
             out_shape, out_strides,
             batch_shape_a, batch_shape_b,
-            M, N, K
+            M, N, K, b_is_1d
         ]() {
             auto a_ptr = a_weak.lock();
             auto b_ptr = b_weak.lock();
@@ -175,8 +208,10 @@ t_tensor matmul(const t_tensor& a, const t_tensor& b) {
                         }
                         
                         size_t offset_b_base = 0;
-                        for (size_t i = 0; i < batch_indices_b.size(); i++) {
-                            offset_b_base += batch_indices_b[i] * strides_b[i + 2];
+                        if (!b_is_1d) {
+                            for (size_t i = 0; i < batch_indices_b.size(); i++) {
+                                offset_b_base += batch_indices_b[i] * strides_b[i + 2];
+                            }
                         }
                         
                         // Calculate base output offset
@@ -186,23 +221,32 @@ t_tensor matmul(const t_tensor& a, const t_tensor& b) {
                         }
                         
                         size_t matrix_idx_offset = batch_shape_a.size();
-                        size_t batch_b_offset = matrix_idx_offset + 2;
-                        for (size_t i = 0; i < batch_indices_b.size(); i++) {
-                            out_offset_base += batch_indices_b[i] * out_strides[batch_b_offset + i];
+                        if (!b_is_1d) {
+                            size_t batch_b_offset = matrix_idx_offset + 2;
+                            for (size_t i = 0; i < batch_indices_b.size(); i++) {
+                                out_offset_base += batch_indices_b[i] * out_strides[batch_b_offset + i];
+                            }
                         }
                         
                         // For each element in A, compute its gradient
-                        // dA[i,k] = sum_j(dC[i,j] * B[k,j])
                         for (size_t i = 0; i < M; i++) {
                             for (size_t k = 0; k < K; k++) {
                                 float grad_sum = 0.0f;
-                                // Sum over N dimension
-                                for (size_t j = 0; j < N; j++) {
-                                    size_t out_idx = out_offset_base + i * out_strides[matrix_idx_offset] + 
-                                                    j * out_strides[matrix_idx_offset + 1];
-                                    size_t b_idx = k * strides_b[0] + j * strides_b[1] + offset_b_base;
-                                    
-                                    grad_sum += grad_output[out_idx] * b_ptr->get_data()[b_idx];
+                                
+                                if (b_is_1d) {
+                                    // For 1D vector: dA[i,k] = dC[i] * B[k]
+                                    size_t out_idx = out_offset_base + i * out_strides[matrix_idx_offset];
+                                    size_t b_idx = k * strides_b[0];
+                                    grad_sum = grad_output[out_idx] * b_ptr->get_data()[b_idx];
+                                } else {
+                                    // For matrix: dA[i,k] = sum_j(dC[i,j] * B[k,j])
+                                    for (size_t j = 0; j < N; j++) {
+                                        size_t out_idx = out_offset_base + i * out_strides[matrix_idx_offset] + 
+                                                        j * out_strides[matrix_idx_offset + 1];
+                                        size_t b_idx = k * strides_b[0] + j * strides_b[1] + offset_b_base;
+                                        
+                                        grad_sum += grad_output[out_idx] * b_ptr->get_data()[b_idx];
+                                    }
                                 }
                                 
                                 // Update gradient for A
@@ -244,8 +288,10 @@ t_tensor matmul(const t_tensor& a, const t_tensor& b) {
                         }
                         
                         size_t offset_b_base = 0;
-                        for (size_t i = 0; i < batch_indices_b.size(); i++) {
-                            offset_b_base += batch_indices_b[i] * strides_b[i + 2];
+                        if (!b_is_1d) {
+                            for (size_t i = 0; i < batch_indices_b.size(); i++) {
+                                offset_b_base += batch_indices_b[i] * strides_b[i + 2];
+                            }
                         }
                         
                         // Calculate base output offset
@@ -255,29 +301,48 @@ t_tensor matmul(const t_tensor& a, const t_tensor& b) {
                         }
                         
                         size_t matrix_idx_offset = batch_shape_a.size();
-                        size_t batch_b_offset = matrix_idx_offset + 2;
-                        for (size_t i = 0; i < batch_indices_b.size(); i++) {
-                            out_offset_base += batch_indices_b[i] * out_strides[batch_b_offset + i];
+                        if (!b_is_1d) {
+                            size_t batch_b_offset = matrix_idx_offset + 2;
+                            for (size_t i = 0; i < batch_indices_b.size(); i++) {
+                                out_offset_base += batch_indices_b[i] * out_strides[batch_b_offset + i];
+                            }
                         }
                         
-                        // For each element in B, compute its gradient
-                        // dB[k,j] = sum_i(A[i,k] * dC[i,j])
-                        for (size_t k = 0; k < K; k++) {
-                            for (size_t j = 0; j < N; j++) {
+                        if (b_is_1d) {
+                            // For 1D vector: dB[k] = sum_i(A[i,k] * dC[i])
+                            for (size_t k = 0; k < K; k++) {
                                 float grad_sum = 0.0f;
-                                // Sum over M dimension
                                 for (size_t i = 0; i < M; i++) {
-                                    size_t out_idx = out_offset_base + i * out_strides[matrix_idx_offset] + 
-                                                    j * out_strides[matrix_idx_offset + 1];
+                                    size_t out_idx = out_offset_base + i * out_strides[matrix_idx_offset];
                                     size_t a_idx = offset_a_base + i * strides_a[ndim_a - 2] + k * strides_a[ndim_a - 1];
                                     
                                     grad_sum += grad_output[out_idx] * a_ptr->get_data()[a_idx];
                                 }
                                 
                                 // Update gradient for B
-                                size_t b_idx = k * strides_b[0] + j * strides_b[1] + offset_b_base;
+                                size_t b_idx = k * strides_b[0];
                                 #pragma omp atomic
                                 grad_b[b_idx] += grad_sum;
+                            }
+                        } else {
+                            // For matrix: dB[k,j] = sum_i(A[i,k] * dC[i,j])
+                            for (size_t k = 0; k < K; k++) {
+                                for (size_t j = 0; j < N; j++) {
+                                    float grad_sum = 0.0f;
+                                    // Sum over M dimension
+                                    for (size_t i = 0; i < M; i++) {
+                                        size_t out_idx = out_offset_base + i * out_strides[matrix_idx_offset] + 
+                                                        j * out_strides[matrix_idx_offset + 1];
+                                        size_t a_idx = offset_a_base + i * strides_a[ndim_a - 2] + k * strides_a[ndim_a - 1];
+                                        
+                                        grad_sum += grad_output[out_idx] * a_ptr->get_data()[a_idx];
+                                    }
+                                    
+                                    // Update gradient for B
+                                    size_t b_idx = k * strides_b[0] + j * strides_b[1] + offset_b_base;
+                                    #pragma omp atomic
+                                    grad_b[b_idx] += grad_sum;
+                                }
                             }
                         }
                     }

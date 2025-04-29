@@ -274,3 +274,33 @@ t_tensor cross_entropy(const t_tensor& input, size_t correct_index, float temper
 
     return result;
 }
+
+t_tensor mean(const t_tensor& input) {
+    t_data data_input = input->get_data();
+    const float* __restrict__ in = data_input.data();
+    float sum = 0.0f;
+    
+    #pragma omp parallel for reduction(+:sum)
+    for(size_t i = 0; i < data_input.size(); i++) sum += in[i];
+
+    t_tensor result = create_tensor(t_data({sum / static_cast<float>(data_input.size())}), t_shape({}), input->get_requires_grad());
+
+    if (!result->get_requires_grad()) {
+        return result;
+    }
+
+    std::function<void()> backward_fn = [input, result]() mutable {
+        const t_data& grad_output = result->get_grad();
+        t_data& grad_input = input->get_grad();
+
+        #pragma omp parallel for
+        for (size_t i = 0; i < grad_input.size(); i++) {
+            grad_input[i] += grad_output[0] / static_cast<float>(grad_input.size());
+        }
+    };
+
+    result->set_backward_fn(backward_fn);
+    result->add_creator(input);
+
+    return result;
+}

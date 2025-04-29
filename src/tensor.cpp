@@ -208,11 +208,8 @@ t_tensor Tensor::transpose() const {
 }
 
 void Tensor::backward() {
-    if(!requires_grad) throw std::runtime_error("Can not call backward() on a node that doesn't require grad");
-
-    for(size_t i = 1; i < shape.size(); i++)
-        if (shape[i] != 1) 
-            throw std::runtime_error("Can only call backward on a scalar");
+    assert(requires_grad);
+    assert(numel() == 1);
     
     std::vector<t_tensor> all_nodes = topo_sort();
 
