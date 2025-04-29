@@ -35,7 +35,7 @@ int main() {
     std::vector<float> targets = {0.0f, 1.0f, 1.0f, 0.0f};
 
     t_shape layers = {2, 4, 1};
-    MLP model(layers);
+    t_module model = create_module<MLP>(layers);
 
     // Optimizer settings
     float lr = 0.1f;
@@ -50,18 +50,18 @@ int main() {
             t_tensor y = create_tensor(t_data({targets[i]}), t_shape({1}), false);
 
             // Forward pass
-            t_tensor output = model.forward(x);
+            t_tensor output = model->forward(x);
 
             // Compute loss
             t_tensor loss = mse_loss(output, y);
             total_loss += loss->get_data()[0];
 
             // Backward pass
-            model.zero_grad();
+            model->zero_grad();
             loss->backward();
 
             // GD step
-            auto params = model.parameters();
+            auto params = model->parameters();
             gd_step(params, lr);
         }
 
@@ -74,7 +74,7 @@ int main() {
     std::cout << "\nTrained XOR results:\n";
     for (size_t i = 0; i < inputs.size(); ++i) {
         t_tensor x = create_tensor(t_data({inputs[i]}), t_shape({2}), false);
-        t_tensor output = model.forward(x);
+        t_tensor output = model->forward(x);
         std::cout << inputs[i][0] << " XOR " << inputs[i][1] << " = " << output->get_data()[0] << std::endl;
     }
 
