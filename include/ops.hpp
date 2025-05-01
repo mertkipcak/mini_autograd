@@ -115,19 +115,19 @@ t_tensor randn(const t_shape& shape, bool requires_grad=false);
 /**
  * @brief A vector of all zeros with the shape same as input
  * @param input Input tensor
+ * @return Tensor with all zeros
+ */
+t_tensor zeros(const t_shape& shape, bool requires_grad=false);
+
+/**
+ * @brief A vector of all zeros with the shape same as input
+ * @param input Input tensor
  * @param requires_grad Wheter to track gradients or not
  * @return Tensor with all zeros
  */
 inline t_tensor zeros_like(const t_tensor& input, bool requires_grad = false) {
     return zeros(input->get_shape(), requires_grad);
 }
-
-/**
- * @brief A vector of all zeros with the shape same as input
- * @param input Input tensor
- * @return Tensor with all zeros
- */
-t_tensor zeros(const t_shape& shape, bool requires_grad=false);
 
 /**
  * @brief sum the elements of the tensor, across a given dimension
