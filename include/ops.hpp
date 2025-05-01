@@ -122,6 +122,23 @@ t_tensor matmul(const t_tensor& a, const t_tensor& b);
 t_tensor randn(const t_shape& shape, bool requires_grad=false);
 
 /**
+ * @brief A vector of all zeros with the shape same as input
+ * @param input Input tensor
+ * @param requires_grad Wheter to track gradients or not
+ * @return Tensor with all zeros
+ */
+inline t_tensor zeros_like(const t_tensor& input, bool requires_grad = false) {
+    return zeros(input->get_shape(), requires_grad);
+}
+
+/**
+ * @brief A vector of all zeros with the shape same as input
+ * @param input Input tensor
+ * @return Tensor with all zeros
+ */
+t_tensor zeros(const t_shape& shape, bool requires_grad=false);
+
+/**
  * @brief sum the elements of the tensor, across a given dimension
  */
 t_tensor sum(const t_tensor& input, size_t dim, bool keepdims = false);
@@ -190,3 +207,10 @@ t_tensor relu(const t_tensor& input);
  * @return Tensor with mean value
  */
 t_tensor mean(const t_tensor& input);
+
+/**
+ * @brief sets 0 of all elements with a chance of p
+ * @param input Input tensor
+ * @return Tensor with dropped values
+ */
+t_tensor dropout(const t_tensor& input, float prob);

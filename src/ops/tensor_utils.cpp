@@ -18,6 +18,13 @@ t_tensor randn(const t_shape& shape, bool requires_grad) {
     return create_tensor(data, shape, requires_grad);
 }
 
+t_tensor zeros(const t_shape& shape, bool requires_grad) {
+    size_t numel = numel_shape(shape);
+    t_data data(numel, 0);
+
+    return create_tensor(data, shape, requires_grad);
+}
+
 t_tensor sumall(const t_tensor& input) {
     t_data data_in = input->get_data();
     const float* __restrict__ in = data_in.data();
@@ -302,5 +309,57 @@ t_tensor mean(const t_tensor& input) {
     result->set_backward_fn(backward_fn);
     result->add_creator(input);
 
+    return result;
+}
+
+t_tensor dropout(const t_tensor& input, float p) {
+    if (p <= 0.0f) return input;
+    if (p >= 1.0f) return zeros_like(input);
+    
+    const size_t len = input->get_data().size();
+    t_data out_data(len);
+    
+    const float scale = 1.0f / (1.0f - p);
+    const float* __restrict__ in = input->get_data().data();
+    float* __restrict__ out = out_data.data();
+    
+    std::shared_ptr<std::vector<uint8_t>> mask = 
+        std::make_shared<std::vector<uint8_t>>(len);
+    uint8_t* __restrict__ mask_data = mask->data();
+    
+    std::mt19937 gen;
+    std::uniform_real_distribution<float> dis(0.0f, 1.0f);
+    for (size_t i = 0; i < len; i++) {
+        if (dis(gen) < p) {
+            mask_data[i] = 0;
+            out[i] = 0.0f;
+        } else {
+            mask_data[i] = 1;
+            out[i] = in[i] * scale;
+        }
+    }
+    
+    t_tensor result = create_tensor(out_data, input->get_shape(), input->get_requires_grad());
+    
+    if (result->get_requires_grad()) {
+        std::function<void()> backward_fn = [input, result, mask, scale]() {
+            const t_data& grad_output = result->get_grad();
+            t_data& grad_input = input->get_grad();
+            const uint8_t* __restrict__ mask_ptr = mask->data();
+            const float* __restrict__ grad_out = grad_output.data();
+            float* __restrict__ grad_in = grad_input.data();
+            
+            #pragma omp parallel for
+            for (size_t i = 0; i < grad_input.size(); i++) {
+                if (mask_ptr[i]) {
+                    grad_in[i] += grad_out[i] * scale;
+                }
+            }
+        };
+        
+        result->set_backward_fn(backward_fn);
+        result->add_creator(input);
+    }
+    
     return result;
 }

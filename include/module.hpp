@@ -104,3 +104,21 @@ class MLP : public Module {
         t_params weights;
         t_params biases;
 };
+
+class Dropout : public Module {
+    public:
+        Dropout(float prob) {
+            drop_prob = prob;
+        };
+
+        t_tensor forward(const t_tensor& input) override {
+            return dropout(input, drop_prob);
+        };
+
+        std::vector<t_tensor> parameters() override {
+            return std::vector<t_tensor>();
+        };
+    
+    private:
+        float drop_prob;
+};
