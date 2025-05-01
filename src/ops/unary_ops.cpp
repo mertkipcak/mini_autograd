@@ -1,5 +1,4 @@
 #include "ops.hpp"
-#include <omp.h>
 
 template<typename Op>
 t_tensor apply_unary_t(const t_tensor& input, Op op) {
@@ -17,10 +16,6 @@ t_tensor apply_unary_t(const t_tensor& input, Op op) {
         t_shape(input->get_shape()),
         input->get_requires_grad()
     );
-}
-
-t_tensor apply_unary(const t_tensor& input, std::function<float(float)> op) {
-    return apply_unary_t(input, op);
 }
 
 template<typename ForwardOp, typename BackwardOp>

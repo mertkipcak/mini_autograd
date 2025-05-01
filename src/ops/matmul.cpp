@@ -1,7 +1,6 @@
 #include "ops.hpp"
 #include <cassert>
 #include <numeric>
-#include <omp.h>
 
 t_tensor matmul(const t_tensor& a, const t_tensor& b) {
     // Validate inputs

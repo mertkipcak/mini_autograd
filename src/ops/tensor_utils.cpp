@@ -1,7 +1,5 @@
 #include "ops.hpp"
 #include "utils.hpp"
-#include <omp.h>
-#include <cassert>
 
 t_tensor randn(const t_shape& shape, bool requires_grad) {
     std::random_device rd;
@@ -178,7 +176,6 @@ t_tensor softmax(const t_tensor& input, float temperature) {
     float* __restrict__ out = data_out.data();
     float max_val = -std::numeric_limits<float>::infinity();
 
-    #pragma omp parallel for reduction(std::max:max_val)
     for (size_t i = 0; i < data_out.size(); i++) {
         max_val = std::max(max_val, out[i]);
     }
@@ -216,7 +213,7 @@ t_tensor softmax(const t_tensor& input, float temperature) {
         t_data& grad_input = input->get_grad();
         #pragma omp parallel for
         for (size_t i = 0; i < grad_input.size(); i++) {
-            float grad = grad_output[i] * (data_output[i] * (1.0 - data_output[i]));
+            const float grad = grad_output[i] * (data_output[i] * (1.0f - data_output[i]));
             grad_input[i] += grad;
         }
     };
@@ -232,7 +229,6 @@ t_tensor cross_entropy(const t_tensor& input, size_t correct_index, float temper
     float* __restrict__ out = probs.data();
     float max_val = -std::numeric_limits<float>::infinity();
 
-    #pragma omp parallel for reduction(std::max:max_val)
     for (size_t i = 0; i < probs.size(); i++) {
         max_val = std::max(max_val, out[i]);
     }

@@ -6,15 +6,6 @@
 #include <vector>
 #include <random>
 
-/**
- * @brief Apply a binary operation element-wise to two tensors.
- * @param a First tensor
- * @param b Second tensor
- * @param op The binary operator to apply element-wise
- * @return New tensor containing the result of the operation
- */
-t_tensor apply_binary(const t_tensor& a, const t_tensor& b, std::function<float(float, float)> op);
-
 /*ADD****************************************************************************************************************/
 /**
  * @brief Create a new tensor that is the element-wise sum of two tensors
@@ -157,14 +148,6 @@ t_tensor softmax(const t_tensor& input, float temperature = 1);
  * @brief Gets the cross entropy los from the tensor
  */
 t_tensor cross_entropy(const t_tensor& input, size_t correct_index, float temperature = 1);
-
-/**
- * @brief Apply an operation element-wise to a tensor
- * @param input Input tensor
- * @param op the operator to apply element-wise
- * @return New tensor with operation applied
- */
-t_tensor apply_unary(const t_tensor& input, std::function<float(float)> op);
 
 /**
  * @brief apply sigmoid function element-wise to a tensor

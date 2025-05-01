@@ -1,6 +1,5 @@
 #include "ops.hpp"
 #include "utils.hpp"
-#include <omp.h>
 
 template<typename Op>
 t_tensor apply_binary_t(const t_tensor& a, const t_tensor& b, Op op) {
@@ -144,7 +143,7 @@ t_tensor binary_with_backward(
             #pragma omp parallel for
             for (size_t i = 0; i < numel; i++) {
                 float grad_b_val = backward_op_B(grad_output[i], data_A[indices_a[i]], data_B[indices_b[i]], data_result[i]);
-                
+
                 #pragma omp atomic
                 grad_B[indices_b[i]] += grad_b_val;
             }
@@ -164,10 +163,6 @@ t_tensor binary_with_backward(
     }
 
     return result;
-}
-
-t_tensor apply_binary(const t_tensor& a, const t_tensor& b, std::function<float(float, float)> op) {
-    return apply_binary_t(a, b, op);
 }
 
 t_tensor add(const t_tensor& a, const t_tensor& b) {
