@@ -122,3 +122,23 @@ class Dropout : public Module {
     private:
         float drop_prob;
 };
+
+class LayerNorm : public Module {
+    public:
+        LayerNorm(size_t feature_count) {
+            weights = zeros(t_shape({feature_count}), true);
+            biases = zeros(t_shape({feature_count}), true);
+        };
+
+        t_tensor forward(const t_tensor& input) override {
+            return layernorm(input, weights, biases);
+        };
+
+        std::vector<t_tensor> parameters() override {
+            return std::vector<t_tensor>({weights, biases});
+        };
+    
+    private:
+        t_tensor weights;
+        t_tensor biases;
+};

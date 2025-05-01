@@ -130,6 +130,23 @@ inline t_tensor zeros_like(const t_tensor& input, bool requires_grad = false) {
 }
 
 /**
+ * @brief A vector of all ones with the shape same as input
+ * @param input Input tensor
+ * @return Tensor with all ones
+ */
+t_tensor ones(const t_shape& shape, bool requires_grad=false);
+
+/**
+ * @brief A vector of all ones with the shape same as input
+ * @param input Input tensor
+ * @param requires_grad Wheter to track gradients or not
+ * @return Tensor with all ones
+ */
+inline t_tensor ones_like(const t_tensor& input, bool requires_grad = false) {
+    return ones(input->get_shape(), requires_grad);
+}
+
+/**
  * @brief sum the elements of the tensor, across a given dimension
  */
 t_tensor sum(const t_tensor& input, size_t dim, bool keepdims = false);
@@ -197,3 +214,10 @@ t_tensor mean(const t_tensor& input);
  * @return Tensor with dropped values
  */
 t_tensor dropout(const t_tensor& input, float prob);
+
+/**
+ * @brief normalizes the tensor across its last dimension
+ * @param input Input tensor
+ * @return Tensor with normalized values
+ */
+t_tensor layernorm(const t_tensor& input, const t_tensor& weights, const t_tensor& biases);

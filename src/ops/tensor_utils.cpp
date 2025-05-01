@@ -1,5 +1,6 @@
 #include "ops.hpp"
 #include "utils.hpp"
+#include <cassert>
 
 t_tensor randn(const t_shape& shape, bool requires_grad) {
     std::random_device rd;
@@ -19,6 +20,13 @@ t_tensor randn(const t_shape& shape, bool requires_grad) {
 t_tensor zeros(const t_shape& shape, bool requires_grad) {
     size_t numel = numel_shape(shape);
     t_data data(numel, 0);
+
+    return create_tensor(data, shape, requires_grad);
+}
+
+t_tensor ones(const t_shape& shape, bool requires_grad) {
+    size_t numel = numel_shape(shape);
+    t_data data(numel, 1);
 
     return create_tensor(data, shape, requires_grad);
 }
@@ -357,5 +365,92 @@ t_tensor dropout(const t_tensor& input, float p) {
         result->add_creator(input);
     }
     
+    return result;
+}
+
+t_tensor layernorm(const t_tensor& input, const t_tensor& weights, const t_tensor& biases) {
+    float eps = 1e-5f;
+    const size_t len = input->get_data().size();
+    const size_t last_dim = input->get_shape().back();
+    const size_t num_rows = len / last_dim;
+
+    assert(weights->get_shape() == t_shape({last_dim}));
+    assert(biases->get_shape() == t_shape({last_dim}));
+
+    t_data out_data(len);
+    t_data means(num_rows);
+    t_data inv_stds(num_rows);
+
+    const float* __restrict__ in = input->get_data().data();
+    const float* __restrict__ gamma = weights->get_data().data();
+    const float* __restrict__ beta = biases->get_data().data();
+    float* __restrict__ out = out_data.data();
+
+    for (size_t i = 0; i < num_rows; ++i) {
+        float mean = 0.0f, var = 0.0f;
+
+        for (size_t j = 0; j < last_dim; ++j)
+            mean += in[i * last_dim + j];
+        mean /= last_dim;
+
+        for (size_t j = 0; j < last_dim; ++j) {
+            float diff = in[i * last_dim + j] - mean;
+            var += diff * diff;
+        }
+        var /= last_dim;
+        float inv_std = 1.0f / std::sqrt(var + eps);
+
+        for (size_t j = 0; j < last_dim; ++j) {
+            size_t idx = i * last_dim + j;
+            float norm = (in[idx] - mean) * inv_std;
+            out[idx] = gamma[j] * norm + beta[j];
+        }
+
+        inv_stds[i] = inv_std;
+        means[i] = mean;
+    }
+
+    t_tensor result = create_tensor(out_data, input->get_shape(), input->get_requires_grad());
+
+    if (result->get_requires_grad()) {
+        std::function<void()> backward_fn = [input, weights, biases, result, num_rows, last_dim, means, inv_stds]() {
+            const float* __restrict__ grad_output = result->get_grad().data();
+            float* __restrict__ grad_input = input->get_grad().data();
+            float* __restrict__ grad_weights = weights->get_grad().data();
+            float* __restrict__ grad_biases = biases->get_grad().data();
+            const float* __restrict__ in = input->get_data().data();
+            const float* __restrict__ gamma = weights->get_data().data();
+        
+            for (size_t i = 0; i < num_rows; i++) {
+                const float mean = means[i];
+                const float inv_std = inv_stds[i];
+        
+                float dot1 = 0.0f, dot2 = 0.0f;
+                t_data xhat(last_dim);
+                t_data dY(last_dim);
+        
+                for (size_t j = 0; j < last_dim; j++) {
+                    size_t idx = i * last_dim + j;
+                    float norm = (in[idx] - mean) * inv_std;
+                    xhat[j] = norm;
+                    dY[j] = grad_output[idx] * gamma[j];
+                    dot1 += dY[j];
+                    dot2 += dY[j] * norm;
+        
+                    grad_biases[j] += grad_output[idx];
+                    grad_weights[j] += grad_output[idx] * norm;
+                }
+        
+                for (size_t j = 0; j < last_dim; j++) {
+                    size_t idx = i * last_dim + j;
+                    grad_input[idx] += inv_std * (dY[j] - dot1/last_dim - xhat[j] * dot2/last_dim);
+                }
+            }
+        };
+        
+        result->set_backward_fn(backward_fn);
+        result->add_creator(input);
+    }
+
     return result;
 }
